@@ -104,11 +104,11 @@
   @media(max-width:820px){.step{grid-template-columns:34px 1fr}.step .tech{grid-column:1 / -1;padding-top:10px;padding-left:34px}}
 
   /* roles / time saved */
-  .stat-band{display:grid;grid-template-columns:auto 1fr;gap:clamp(20px,4vw,50px);align-items:center;
+  .stat-band{display:grid;grid-template-columns:1fr;gap:clamp(22px,3.5vw,34px);align-items:start;
     border:1px solid var(--line);border-radius:14px;background:radial-gradient(120% 100% at 0 0,#1c2127,#141821);padding:clamp(24px,3.5vw,40px)}
   @media(max-width:760px){.stat-band{grid-template-columns:1fr;gap:22px}}
   .stat-band .big{font-family:var(--mono);font-size:clamp(30px,5vw,52px);font-weight:600;color:var(--amber);line-height:1;letter-spacing:-.01em}
-  .stat-band .big small{display:block;font-family:var(--sans);font-size:14px;color:var(--dim);letter-spacing:0;margin-top:10px;font-weight:400}
+  .stat-band .big small{display:block;font-family:var(--sans);font-size:14px;color:var(--dim);letter-spacing:0;margin-top:10px;font-weight:400;max-width:66ch}
   .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:34px}
   @media(max-width:720px){.roles{grid-template-columns:1fr}}
   .role{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:20px}
@@ -222,7 +222,7 @@
         slates and VFX notes, thumbnails it into a live Google Sheet, then re-matches each new cut back to
         your master, with the duration deltas your renegotiation runs on.</p>
       <div class="cta-row">
-        <a class="btn btn-a" href="#get">★ Star on GitHub</a>
+        <a class="btn btn-a" href="https://github.com/thevfxsupervisor/breakdown-studio">★ Star on GitHub</a>
         <a class="btn btn-b" href="#pipeline">Walk the pipeline</a>
       </div>
       <div class="cred"><span class="dot"></span><b>Built by a working VFX supervisor / producer,</b>&nbsp;breaking down and budgeting a real feature, alone, cut after cut.</div>
@@ -506,9 +506,9 @@
 <section id="get">
   <div class="wrap">
     <div class="final">
-      <span class="soon"><span class="dot"></span>Open-sourcing soon</span>
+      <span class="soon"><span class="dot"></span>Open source · MIT · on GitHub</span>
       <h2>Star it, and get the launch notice.</h2>
-      <p>Breakdown Studio goes public shortly. Star the repo to follow along, or leave your email and I will send one note the day it ships.</p>
+      <p>Breakdown Studio is open source and on GitHub now. Star the repo to follow along, or leave your email and I'll send one note when it formally launches.</p>
       <div class="cta-row">
         <a class="btn btn-a" href="https://github.com/thevfxsupervisor/breakdown-studio">★ Star on GitHub</a>
         <a class="btn btn-b" href="mailto:geoff@wanglemedia.com">Get launch notice</a>
