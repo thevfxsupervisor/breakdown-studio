@@ -1,0 +1,13 @@
+config.json
+*.gtoken.json
+*token*.json
+.credentials/
+dist/
+build/
+__pycache__/
+*.pyc
+*.lnk
+.DS_Store
+.venv/
+tokens/
+packaging/get-pip.py

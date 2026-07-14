@@ -1,0 +1,11 @@
+# --- override the repo-wide users/claude/.gitignore for THIS directory only ---------------------
+# The parent .gitignore blanket-blocks *.mp4/*.jpg/*.png as "pre-release footage / confidential"
+# (the right default for real cut data elsewhere in this repo). Everything here is a marketing
+# asset generated from the 100% synthetic demo cut in ../../demo/ (no client footage, names, or
+# real project data) and is MEANT to ship on the public site, so un-ignore it explicitly.
+!demo_reel.mp4
+!screenshot_contact_sheet.jpg
+!screenshot_main.png
+!screenshot_running.png
+!screenshot_settings.png
+!screenshot_thumbnail_strip.jpg

@@ -1,0 +1,11 @@
+# Build venv (recreated by build.bat; not checked in - hundreds of MB of installed packages)
+build_env/
+
+# PyInstaller working/output dirs (build.bat stages these locally then copies dist/ up to
+# ../dist/, but keep local copies out of git regardless)
+build/
+dist/
+
+# get-pip.py is downloaded by build.bat on first run; keeping it here is harmless but it's
+# fetched fresh each time a build_env doesn't exist, so don't rely on a stale copy
+get-pip.py

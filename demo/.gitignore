@@ -1,0 +1,20 @@
+# Pipeline run outputs from make_demo_cut.py + the demo detect/frames/thumbs/ocr/contact_sheet
+# pass. Regeneratable from demo_cut.mp4 + demo_scenes_truth.csv, so never commit it - keep the
+# repo light.
+output/
+
+# dress_film.py's own working files: NEVER commit. tos_dressed.mp4 is a large re-encode of
+# third-party (Blender Foundation, CC-BY 3.0) footage and belongs on local/fast disk (U:/blender_demo/
+# per demo/README.md), not in the repo. Cached scene-detect CSVs/trims are pure derived scratch.
+tos_dressed*.mp4
+_dress_cache/
+
+# --- override the repo-wide users/claude/.gitignore for THIS directory only ---------------------
+# The parent .gitignore blanket-blocks *.mp4/*.csv etc. as "pre-release footage / footage-derived
+# data" (the right default for real cut data elsewhere in this repo). Everything in demo/ is
+# either 100% synthetic/procedural (make_demo_cut.py output) or a small ground-truth CSV
+# (tos_truth.csv - no footage, just shot metadata) and is MEANT to ship in the repo as a demo/test
+# fixture, so un-ignore those explicitly here.
+!demo_cut.mp4
+!demo_scenes_truth.csv
+!tos_truth.csv

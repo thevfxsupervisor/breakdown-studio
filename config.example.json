@@ -1,0 +1,55 @@
+{
+  "transnet_python": "/path/to/transnet_env/Scripts/python.exe",
+  "worker_python": "/path/to/worker_env/Scripts/python.exe",
+  "ffmpeg": "/path/to/ffmpeg.exe",
+  "ffprobe": "/path/to/ffprobe.exe",
+  "scripts_dir": ".",
+  "output_base": "/path/to/output",
+  "prefix": "SHW",
+  "encoder": "libx264",
+  "workers": "4",
+  "threshold": "0.25",
+  "canvas": "7680x4320",
+  "last_movie": "",
+  "google_client_secret": "/path/to/google-sheets-credentials.json",
+  "google_token": "/path/to/google-sheets-token.json",
+  "master_id": "YOUR_MASTER_SHEET_ID",
+  "template_id": "YOUR_TEMPLATE_SHEET_ID",
+  "spreadsheet_id": "YOUR_SPREADSHEET_ID",
+  "sheet_tab": "Shots_Breakdown",
+  "sheet_first_row": "3",
+  "sheet_mode": "existing",
+  "new_title": "New Film - Shot Breakdown & Estimate",
+  "fps": "24.0",
+  "show_tc_offset": "00:00:00:00",
+  "drive_folder_id": "",
+  "miro_token": "YOUR_MIRO_REST_TOKEN_OR_PATH_TO_TOKEN_FILE",
+  "miro_board": "YOUR_MIRO_BOARD_ID",
+  "miro_only_status": "",
+  "ocr_upscale": "2",
+  "ocr_crops": {
+    "slate": [
+      0,
+      82,
+      660,
+      128
+    ],
+    "note": [
+      0,
+      940,
+      960,
+      1080
+    ],
+    "showtc": [
+      1560,
+      55,
+      1920,
+      135
+    ]
+  },
+  "fetch_format": "",
+  "whisper_model": "small",
+  "ollama_url": "http://localhost:11434",
+  "vision_model": "llava:13b",
+  "text_model": "llama3.1"
+}
