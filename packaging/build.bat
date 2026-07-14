@@ -28,7 +28,7 @@ echo Base python: %BS_BUILD_PYTHON%
 
 if not exist "%BUILD_ENV%\Scripts\python.exe" (
     echo.
-    echo [1/5] Creating build venv (--without-pip; bootstrapping pip separately)...
+    echo [1/5] Creating build venv, bootstrapping pip separately ...
     "%BS_BUILD_PYTHON%" -m venv "%BUILD_ENV%" --without-pip
     if errorlevel 1 (
         echo ERROR: could not create venv with "%BS_BUILD_PYTHON%". Set BS_BUILD_PYTHON to a

@@ -129,16 +129,28 @@ def check_ffbinary(cfg, key, default_name, label, run_fn=None):
     return (label, FAIL, f"'{path} -version' failed (exit {r.returncode})")
 
 
-def check_config_exists(config_path=None):
+def check_config_exists(config_path=None, frozen=None):
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
     config_path = Path(config_path) if config_path else CONFIG
     if config_path.exists():
         return ("config.json", PASS, str(config_path))
+    if frozen:
+        # A fresh unzip has no config yet; the app writes one on the first Settings save.
+        return ("config.json", WARN,
+                "no settings saved yet: open the app, set ffmpeg/ffprobe in Settings, Save")
     return ("config.json", FAIL,
             f"not found at {config_path}: copy config.example.json to config.json")
 
 
-def check_worker_python(cfg):
+def check_worker_python(cfg, frozen=None):
+    """frozen is injectable for tests; defaults to sys.frozen (set by PyInstaller)."""
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
     val = (cfg.get("worker_python") or "").strip()
+    if frozen:
+        # The packaged build dispatches pipeline stages to itself: no external Python is
+        # needed, so an unset worker_python is expected there, not a problem.
+        return ("config: worker_python", INFO,
+                val or "not needed: the packaged build runs stages self-contained")
     if not val:
         return ("config: worker_python", FAIL,
                 "not set: run the installer, or set it in Settings")
@@ -147,9 +159,14 @@ def check_worker_python(cfg):
     return ("config: worker_python", PASS, val)
 
 
-def check_transnet_python(cfg):
+def check_transnet_python(cfg, frozen=None):
+    frozen = getattr(sys, "frozen", False) if frozen is None else frozen
     val = (cfg.get("transnet_python") or "").strip()
     if not val:
+        if frozen:
+            return ("config: transnet_python", INFO,
+                    "blank: the packaged build ships without AI features; point this at an "
+                    "AI-features Python to enable Detect and OCR (README, Advanced)")
         return ("config: transnet_python", WARN,
                 "blank: Detect will try worker_python, then skip if it can't import "
                 "transnetv2_pytorch")
