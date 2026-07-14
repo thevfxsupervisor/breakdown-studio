@@ -1,0 +1,578 @@
+<title>Breakdown Studio: breakdown and budget a whole film, solo</title>
+<meta name="description" content="For independent VFX supervisors and producers: break down and budget an entire film from the edit. Detect every shot, read the burned-in slates and VFX notes, thumbnail into a live Google Sheet, and re-match every new cut back to your master. Open-source, and built to work alongside your AI assistant. Built solo by a working VFX supervisor who ships production tooling and orchestrates AI.">
+<style>
+  :root{
+    --bg:#131619; --panel:#191d21; --raise:#1f242a; --line:#2a3037; --line2:#39424b;
+    --txt:#e9e6df; --dim:#9aa1a8; --mute:#727981;
+    --amber:#e6963c; --amber-soft:#f0b26a; --green:#5bbf8f; --red:#e0574f; --cyan:#54a8c4;
+    --mono:ui-monospace,"SFMono-Regular","Cascadia Code",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.55;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:inherit}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 clamp(18px,4vw,40px)}
+  .mono{font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber)}
+  h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+  h1{font-size:clamp(38px,6.2vw,72px);line-height:1.03}
+  h2{font-size:clamp(25px,3.5vw,40px);line-height:1.1}
+  p{margin:0}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);font-size:13.5px;
+    letter-spacing:.02em;padding:13px 20px;border-radius:7px;text-decoration:none;border:1px solid transparent;
+    transition:transform .15s ease,background .15s ease,border-color .15s ease;cursor:pointer}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-a{background:var(--amber);color:#1a1206;font-weight:600}
+  .btn-a:hover{background:var(--amber-soft)}
+  .btn-b{border-color:var(--line2);color:var(--txt);background:transparent}
+  .btn-b:hover{border-color:var(--amber);color:var(--amber)}
+  .btn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+  .pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+    padding:3px 8px;border-radius:20px;border:1px solid;white-space:nowrap}
+  .pill.ship{color:var(--green);border-color:rgba(91,191,143,.4);background:rgba(91,191,143,.08)}
+  .pill.roll{color:var(--amber-soft);border-color:rgba(230,150,60,.4);background:rgba(230,150,60,.07)}
+  .rule{height:1px;background:var(--line);border:0;margin:0}
+
+  header.top{position:sticky;top:0;z-index:40;backdrop-filter:blur(9px);
+    background:rgba(19,22,25,.72);border-bottom:1px solid var(--line)}
+  .top .wrap{display:flex;align-items:center;gap:18px;height:60px}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:-.01em;font-size:15.5px}
+  .logo{width:26px;height:26px;border-radius:5px;position:relative;flex:0 0 auto;
+    background:linear-gradient(135deg,#20262c,#12151a);border:1px solid var(--line2);overflow:hidden}
+  .logo i{position:absolute;left:4px;top:4px;bottom:4px;width:3px;background:var(--amber);border-radius:1px;
+    box-shadow:6px 0 0 var(--dim),11px 0 0 var(--dim)}
+  .top nav{margin-left:auto;display:flex;gap:22px;align-items:center}
+  .top nav a{font-family:var(--mono);font-size:12.5px;color:var(--dim);text-decoration:none;letter-spacing:.03em}
+  .top nav a:hover{color:var(--txt)}
+  .top .btn{padding:9px 15px}
+  @media(max-width:760px){.top nav a.hide-sm{display:none}}
+
+  .hero{position:relative;padding:clamp(52px,8.5vw,96px) 0 42px}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(28px,4vw,56px);align-items:center}
+  @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:36px}.see-grid{grid-template-columns:1fr!important}}
+  .hero h1 span{color:var(--amber)}
+  .lede{margin-top:22px;font-size:clamp(16px,1.8vw,19px);color:var(--dim);max-width:38ch}
+  .cta-row{margin-top:30px;display:flex;gap:12px;flex-wrap:wrap}
+  .cred{margin-top:26px;font-family:var(--mono);font-size:12px;color:var(--mute);display:flex;
+    align-items:center;gap:9px;letter-spacing:.02em}
+  .cred b{color:var(--dim);font-weight:600}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(91,191,143,.16)}
+
+  .strip-stage{position:relative;border:1px solid var(--line);border-radius:12px;
+    background:linear-gradient(180deg,#171b1f,#12151a);padding:16px 16px 14px;box-shadow:0 30px 60px -30px #000}
+  .strip-label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:11px}
+  .strip{position:relative;display:flex;gap:6px;overflow:hidden}
+  .frame{position:relative;flex:1 1 0;min-width:0;aspect-ratio:16/9;border-radius:3px;overflow:hidden;border:1px solid #0c0f12}
+  .frame .grade{position:absolute;inset:0}
+  .frame .bars{position:absolute;left:0;right:0;height:13%;background:#000}
+  .frame .bars.t{top:0}.frame .bars.b{bottom:0}
+  .frame .bi{position:absolute;font-family:var(--mono);color:#e9e6df;text-shadow:0 1px 2px #000;font-size:6.5px;line-height:1}
+  .frame .bi.tl{top:15%;left:5%}.frame .bi.tr{top:15%;right:5%}
+  .frame .bi.bl{bottom:16%;left:5%;color:var(--amber-soft);max-width:80%}
+  .playhead{position:absolute;top:0;bottom:0;width:2px;background:linear-gradient(var(--amber),transparent);
+    left:0;box-shadow:0 0 12px 2px rgba(230,150,60,.5);opacity:0}
+  .cutmark{position:absolute;top:-3px;width:1px;height:calc(100% + 6px);background:var(--red);opacity:0;transition:opacity .3s ease}
+  .cutmark::after{content:"";position:absolute;top:-4px;left:-3px;border-left:3.5px solid transparent;
+    border-right:3.5px solid transparent;border-top:5px solid var(--red)}
+  .codes{display:flex;gap:6px;margin-top:9px}
+  .code{flex:1 1 0;min-width:0;font-family:var(--mono);font-size:10px;text-align:center;color:var(--dim);
+    padding:5px 2px;border:1px solid var(--line);border-radius:4px;background:var(--panel);opacity:0;
+    transform:translateY(5px);transition:opacity .4s ease,transform .4s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .code.on{opacity:1;transform:none;border-color:var(--line2)}
+  .code b{color:var(--amber);font-weight:600}
+
+  section{padding:clamp(50px,7.5vw,88px) 0}
+  .sec-head{max-width:62ch}
+  .sec-head .eyebrow{margin-bottom:14px;display:block}
+  .sec-head p.k{margin-top:16px;color:var(--dim);font-size:17px;max-width:56ch}
+
+  /* journey */
+  .journey{margin-top:40px;display:grid;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}
+  .step{display:grid;grid-template-columns:64px 1.1fr 1fr;gap:clamp(16px,3vw,34px);padding:22px clamp(18px,3vw,30px);
+    align-items:start;border-top:1px solid var(--line);position:relative}
+  .step:first-child{border-top:0}
+  .step:hover{background:var(--raise)}
+  .step .no{font-family:var(--mono);font-size:13px;color:var(--amber);letter-spacing:.06em;padding-top:3px}
+  .step .main h3{font-size:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .step .main p{margin-top:7px;font-size:14px;color:var(--dim);max-width:44ch}
+  .step .tech{font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.02em;padding-top:4px;line-height:1.7}
+  .step .tech .out{color:var(--dim)}
+  @media(max-width:820px){.step{grid-template-columns:34px 1fr}.step .tech{grid-column:1 / -1;padding-top:10px;padding-left:34px}}
+
+  /* roles / time saved */
+  .stat-band{display:grid;grid-template-columns:auto 1fr;gap:clamp(20px,4vw,50px);align-items:center;
+    border:1px solid var(--line);border-radius:14px;background:radial-gradient(120% 100% at 0 0,#1c2127,#141821);padding:clamp(24px,3.5vw,40px)}
+  @media(max-width:760px){.stat-band{grid-template-columns:1fr;gap:22px}}
+  .stat-band .big{font-family:var(--mono);font-size:clamp(30px,5vw,52px);font-weight:600;color:var(--amber);line-height:1;letter-spacing:-.01em}
+  .stat-band .big small{display:block;font-family:var(--sans);font-size:14px;color:var(--dim);letter-spacing:0;margin-top:10px;font-weight:400}
+  .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:34px}
+  @media(max-width:720px){.roles{grid-template-columns:1fr}}
+  .role{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:20px}
+  .role .r{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber)}
+  .role h3{font-size:16px;margin:10px 0 7px}
+  .role p{font-size:13.5px;color:var(--dim)}
+
+  /* matching showcase */
+  .match{border:1px solid var(--line);border-radius:14px;background:radial-gradient(120% 100% at 0% 0%,#1b2026,#141821);padding:clamp(22px,3.4vw,40px);overflow:hidden}
+  .match-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,5vw,70px);align-items:center;margin-top:26px}
+  @media(max-width:820px){.match-grid{grid-template-columns:1fr;gap:30px}}
+  .tiers{display:grid;gap:10px}
+  .tier{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline;border-left:2px solid var(--line2);padding:8px 0 8px 16px}
+  .tier .n{font-family:var(--mono);font-size:11px;color:var(--amber);letter-spacing:.1em}
+  .tier b{font-weight:600}
+  .tier span{color:var(--dim);font-size:13.5px;display:block;margin-top:2px}
+  .tier.win{border-left-color:var(--green)}
+  .col2{display:grid;grid-template-columns:1fr 1fr;gap:34px;position:relative}
+  .col2 h4{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:0 0 10px;font-weight:500}
+  .rowline{font-family:var(--mono);font-size:12.5px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;
+    background:var(--panel);margin-bottom:8px;position:relative;color:var(--dim)}
+  .rowline b{color:var(--txt)}
+  .rowline.m{border-color:rgba(91,191,143,.45);box-shadow:inset 0 0 0 1px rgba(91,191,143,.12)}
+  .rowline .tag{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:9px;letter-spacing:.08em;color:var(--green)}
+  .rowline .tag.new{color:var(--amber)}
+  #wires{position:absolute;inset:0;pointer-events:none;overflow:visible}
+  #wires path{fill:none;stroke:var(--green);stroke-width:1.5;opacity:.5;stroke-dasharray:4 3}
+
+  /* assistant / AI kit */
+  .kit{display:grid;gap:9px}
+  .kit .k1{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline;border-left:2px solid var(--line2);padding:8px 0 8px 16px}
+  .kit .k1.win{border-left-color:var(--cyan)}
+  .kit .k1 .n{font-family:var(--mono);font-size:11px;color:var(--cyan);letter-spacing:.05em;white-space:nowrap}
+  .kit .k1 b{font-weight:600}
+  .kit .k1 span{color:var(--dim);font-size:13.5px;display:block;margin-top:3px}
+  .term{font-family:var(--mono);font-size:12.5px;line-height:1.75;background:#0e1115;border:1px solid var(--line);
+    border-radius:10px;padding:15px 16px;color:var(--dim);overflow-x:auto;white-space:pre;box-shadow:inset 0 0 40px -20px #000}
+  .term .cmd{color:var(--amber)}
+  .term .ok{color:var(--green)}
+  .term .warn{color:var(--amber-soft)}
+  .term .bad{color:var(--red)}
+  .term .mut{color:var(--mute)}
+  .term .head{display:flex;gap:6px;margin-bottom:12px}
+  .term .head i{width:9px;height:9px;border-radius:50%;background:var(--line2)}
+
+  /* roadmap */
+  .road{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:34px}
+  @media(max-width:720px){.road{grid-template-columns:1fr}}
+  .rd{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:20px 22px}
+  .rd h3{font-size:14px;font-family:var(--mono);letter-spacing:.05em;display:flex;align-items:center;gap:10px}
+  .rd ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:9px}
+  .rd li{font-size:13.5px;color:var(--dim);display:flex;gap:10px}
+  .rd li::before{content:"";flex:0 0 auto;width:6px;height:6px;border-radius:50%;margin-top:7px;background:var(--line2)}
+  .rd.now li::before{background:var(--green)}
+  .rd.next li::before{background:var(--amber)}
+
+  .maker{display:grid;grid-template-columns:1.2fr 1fr;gap:clamp(26px,5vw,60px);align-items:center}
+  @media(max-width:820px){.maker{grid-template-columns:1fr;gap:28px}}
+  .quote{font-size:clamp(21px,2.7vw,29px);font-weight:600;letter-spacing:-.01em;line-height:1.32}
+  .quote em{color:var(--amber);font-style:normal}
+  .maker .by{margin-top:20px;font-family:var(--mono);font-size:12.5px;color:var(--mute)}
+  .maker .by b{color:var(--dim);font-weight:600}
+  .specs{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:8px 4px}
+  .spec{display:flex;justify-content:space-between;gap:16px;padding:12px 16px;font-size:13px}
+  .spec+.spec{border-top:1px solid var(--line)}
+  .spec .k{color:var(--mute);font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
+  .spec .v{color:var(--txt);text-align:right}
+
+  .final{text-align:center;border:1px solid var(--line);border-radius:16px;
+    background:radial-gradient(100% 140% at 50% 0%,#1d2329,#131619);padding:clamp(40px,7vw,72px) 22px}
+  .final h2{margin-bottom:14px}
+  .final p{color:var(--dim);max-width:52ch;margin:0 auto 28px}
+  .final .cta-row{justify-content:center}
+  .soon{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--green);border:1px solid rgba(91,191,143,.3);border-radius:20px;padding:5px 13px;margin-bottom:22px}
+
+  footer{border-top:1px solid var(--line);padding:30px 0;color:var(--mute);font-size:12.5px}
+  footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+  footer .mono{font-size:11.5px}
+
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .playhead{display:none}.cutmark{opacity:1}.code{opacity:1;transform:none}
+  }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><span class="logo"><i></i></span>Breakdown&nbsp;Studio</div>
+    <nav>
+      <a href="#pipeline" class="hide-sm">Pipeline</a>
+      <a href="#match" class="hide-sm">Matching</a>
+      <a href="#proof" class="hide-sm">Proof</a>
+      <a href="#see" class="hide-sm">See it</a>
+      <a href="#assistant" class="hide-sm">AI kit</a>
+      <a href="#who" class="hide-sm">Who it's for</a>
+      <a href="#roadmap" class="hide-sm">Roadmap</a>
+      <a class="btn btn-a" href="#get">Get launch notice</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow">Open-source · VFX breakdown toolkit</span>
+      <h1 style="margin-top:18px">Breakdown and budget<br><span>a whole film. Solo.</span></h1>
+      <p class="lede">A production hands you the cut and needs a number. Every bid, schedule and vendor
+        package hangs off the shot breakdown, and doing it alone used to mean weeks of hand-logging that a
+        re-cut threw away. Breakdown Studio builds it from the edit: splits every shot, reads the burned-in
+        slates and VFX notes, thumbnails it into a live Google Sheet, then re-matches each new cut back to
+        your master, with the duration deltas your renegotiation runs on.</p>
+      <div class="cta-row">
+        <a class="btn btn-a" href="#get">★ Star on GitHub</a>
+        <a class="btn btn-b" href="#pipeline">Walk the pipeline</a>
+      </div>
+      <div class="cred"><span class="dot"></span><b>Built by a working VFX supervisor / producer,</b>&nbsp;breaking down and budgeting a real feature, alone, cut after cut.</div>
+    </div>
+
+    <div class="strip-stage" id="stage">
+      <div class="strip-label"><span>THE EDIT · 24fps</span><span id="scan">DETECTING SHOTS…</span></div>
+      <div class="strip" id="strip"><div class="playhead" id="ph"></div></div>
+      <div class="codes" id="codes"></div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="pipeline">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">The whole process, end to end</span>
+      <h2>Edit in. Living master breakdown out.</h2>
+      <p class="k">Eight steps, one tool. It runs offline on your own machine and your own Google account.
+        Every step ships today, validated against four cuts of a real feature in production.</p></div>
+
+    <div class="journey">
+      <div class="step">
+        <div class="no">01</div>
+        <div class="main"><h3>Scan &amp; split the first cut <span class="pill ship">shipping</span></h3>
+          <p>Neural shot-boundary detection finds every cut in the movie file. A slate-change check catches
+            over-splits and missed cuts, so the shot list is true before anything downstream.</p></div>
+        <div class="tech">TransNetV2, offline<br><span class="out">→ Scenes.csv, review band</span></div>
+      </div>
+      <div class="step">
+        <div class="no">02</div>
+        <div class="main"><h3>Frames: start · middle · end <span class="pill ship">shipping</span></h3>
+          <p>Three frame-accurate stills per shot. Pick which frame represents the shot, or keep all three
+            for a scrub-free read of how it moves.</p></div>
+        <div class="tech">ffmpeg, frame-accurate<br><span class="out">→ start / mid / end</span></div>
+      </div>
+      <div class="step">
+        <div class="no">03</div>
+        <div class="main"><h3>OCR the burn-ins into the breakdown <span class="pill ship">shipping</span></h3>
+          <p>Read the top-left slate (scene / slate / take) for identity, and the bottom-left editorial note
+            that actually marks a shot as VFX. A three-frame check rejects notes that bled off the shot before.</p></div>
+        <div class="tech">EasyOCR, multi-frame<br><span class="out">→ slate, take, VFX note</span></div>
+      </div>
+      <div class="step">
+        <div class="no">04</div>
+        <div class="main"><h3>Thumbnails to Google Drive <span class="pill ship">shipping</span></h3>
+          <p>Every thumbnail uploads to your own Drive, deduplicated by checksum so re-runs never pile up
+            copies, and the sheet points straight at them.</p></div>
+        <div class="tech">Drive, your account<br><span class="out">→ md5-aware upload</span></div>
+      </div>
+      <div class="step">
+        <div class="no">05</div>
+        <div class="main"><h3>Live Google-Sheet breakdown <span class="pill ship">shipping</span></h3>
+          <p>A real spreadsheet with inline thumbnails, shot codes, real show timecode and duration, ready
+            to bid, note, and share, on the account you already use.</p></div>
+        <div class="tech">Sheets API, desktop OAuth<br><span class="out">→ thumbnailed breakdown</span></div>
+      </div>
+      <div class="step">
+        <div class="no">06</div>
+        <div class="main"><h3>Contact sheets &amp; reference clips <span class="pill ship">shipping</span></h3>
+          <p>An 8K contact sheet for the whole reel, plus per-shot reference clips with the shot code and
+            duration burned in, and a stitched timeline, for reviews and vendor packages.</p></div>
+        <div class="tech">PIL + ffmpeg<br><span class="out">→ contact sheet, ref clips</span></div>
+      </div>
+      <div class="step">
+        <div class="no">07</div>
+        <div class="main"><h3>Compare cuts <span class="pill ship">shipping</span></h3>
+          <p>Diff a new cut against the last one: what stayed, shifted, changed, dropped, or is genuinely
+            new, so a re-cut becomes a short review instead of a full re-log.</p></div>
+        <div class="tech">alignment + slate identity<br><span class="out">→ change report</span></div>
+      </div>
+      <div class="step">
+        <div class="no">08</div>
+        <div class="main"><h3>Update the master, 1:1 <span class="pill ship">shipping</span></h3>
+          <p>Match every shot back to your master one-to-one and write its new timecode, duration, thumbnail
+            and notes in place. Hand-added shots are protected; nothing applies without your sign-off.</p></div>
+        <div class="tech">exact · ordinal · CLIP<br><span class="out">→ gated master update</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="who">
+  <div class="wrap">
+    <div class="stat-band">
+      <div class="big">weeks&nbsp;→&nbsp;an&nbsp;afternoon<small>The film-wide breakdown that used to take weeks of hand-logging, and got half-thrown-away on every re-cut, runs in one pass and updates itself.</small></div>
+      <div>
+        <span class="eyebrow">Built for the one-person VFX department</span>
+        <div class="roles">
+          <div class="role"><div class="r">Independent VFX producers</div><h3>Budget the whole film</h3>
+            <p>An accurate, current shot count, the VFX subset, and per-shot duration deltas cut to cut: the numbers a bid, a vendor negotiation and a cashflow actually stand on.</p></div>
+          <div class="role"><div class="r">Supervisors on double duty</div><h3>Supervise, don't type</h3>
+            <p>When you are the supervisor and the coordinator, the log builds itself: every VFX shot and its editorial note surfaced straight from the burn-in.</p></div>
+          <div class="role"><div class="r">The production</div><h3>Numbers they can greenlight</h3>
+            <p>Your client gets a thumbnail-for-thumbnail breakdown and a budget that tracks the cut instead of drifting behind it, from one person, in days.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="match">
+  <div class="wrap">
+    <div class="match">
+      <span class="eyebrow">The hard part, solved</span>
+      <h2 style="margin-top:12px;max-width:20ch">Match a new cut to your master, 1:1.</h2>
+      <p class="k" style="color:var(--dim);margin-top:14px;max-width:58ch">A master shot code is unique, so the match is a strict one-to-one assignment. It resolves in priority order, the same way an experienced coordinator does it by hand.</p>
+      <div class="match-grid">
+        <div class="tiers">
+          <div class="tier win"><span class="n">01</span><div><b>Exact code</b><span>Same slate, take and counter. An instant, certain match.</span></div></div>
+          <div class="tier"><span class="n">02</span><div><b>Ordinal within a slate</b><span>When counters drift, pair the pieces in order, first to first. Never re-ordered by picture.</span></div></div>
+          <div class="tier"><span class="n">03</span><div><b>Slate, take relaxed</b><span>Same setup, a re-labelled take. Carried forward with the new code.</span></div></div>
+          <div class="tier"><span class="n">04</span><div><b>Visual, last resort</b><span>Only for slate-less placeholders. A clear slate always beats a look-alike.</span></div></div>
+        </div>
+        <div class="ladder" style="position:relative">
+          <div class="col2">
+            <div><h4>New cut</h4>
+              <div class="rowline m"><b>SHW_0884_02_020</b><span class="tag">exact</span></div>
+              <div class="rowline m"><b>SHW_0519_03_040</b><span class="tag">ordinal</span></div>
+              <div class="rowline m"><b>SHW_0519_03_050</b><span class="tag">ordinal</span></div>
+              <div class="rowline"><b>SHW_0932_01_010</b><span class="tag new">new?</span></div>
+            </div>
+            <div><h4>Master</h4>
+              <div class="rowline"><b>SHW_0884_02_020</b></div>
+              <div class="rowline"><b>SHW_0519_03_030</b></div>
+              <div class="rowline"><b>SHW_0519_03_040</b></div>
+              <div class="rowline" style="opacity:.5"><b>· dropped ·</b></div>
+            </div>
+          </div>
+          <svg id="wires"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="proof">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Validated on a real production</span>
+      <h2>Tested against four cuts of a real feature film.</h2>
+      <p class="k">Not a toy benchmark. Every module was regression-tested against the operator-verified
+        breakdown of a feature in active production: four successive cuts, thousands of slate reads, and the
+        final producer-approved master match as ground truth. (The production stays unnamed; the numbers don't.)</p></div>
+    <div class="tiers" style="margin-top:26px;max-width:820px">
+      <div class="tier win"><span class="n mono">98%</span><div><b>Slate grammar</b><span>9,188 operator-verified burn-in reads across four cuts, parsed by the shipping grammar. The residue is OCR luck, not logic.</span></div></div>
+      <div class="tier win"><span class="n mono">100%</span><div><b>Live OCR</b><span>EasyOCR on real frames vs the production reads, after the OCR-confusable substitution tier (s→5, o→0, &amp;→8) landed.</span></div></div>
+      <div class="tier win"><span class="n mono">8/8</span><div><b>Boundary QC</b><span>Every production merge flag reproduced with zero false extras; one contradictory production flag handled more coherently.</span></div></div>
+      <div class="tier win"><span class="n mono">~95%</span><div><b>Cut-to-master match</b><span>The 1:1 matcher reproduces the producer-approved outcome on the achievable subset, zero uniqueness collisions. The last 5% is the supervisor's eye, by design.</span></div></div>
+      <div class="tier win"><span class="n mono">4 cuts</span><div><b>Chained revision test</b><span>Four successive cuts matched in sequence, master-style: the uniqueness invariant held on every transition and 90.8% of shot codes stayed stable across the whole chain, with every drift traced to a real editorial cause.</span></div></div>
+      <div class="tier"><span class="n mono">232</span><div><b>Unit tests, all green</b><span>Frame math, grammar, repair logic, matcher invariants. Plus an end-to-end sheet build verified idempotent: re-running updates in place, never duplicates.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="see">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">See it</span>
+      <h2>The real app, running a real pipeline.</h2>
+      <p class="k">Everything below was produced by the tool itself on the Blender Foundation's open film
+        <b>Tears of Steel</b> (CC-BY), dressed with production-style slate and note burn-ins by the shipped
+        <span class="mono">dress_film.py</span>. No client footage anywhere on this site. 149 shots detected,
+        slates read at 96%, notes at 98%, straight off the burn-ins.</p></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:26px" class="see-grid">
+      <figure style="margin:0;grid-column:1/-1">
+        <video src="assets/demo_reel.mp4" controls muted playsinline preload="metadata"
+               style="width:100%;border:1px solid var(--line2);border-radius:8px;background:#000"></video>
+        <figcaption class="mono" style="font-size:11.5px;color:var(--mute);margin-top:8px">The dressed cut, the 8K contact sheet, and the app mid-run · footage (CC) Blender Foundation | mango.blender.org</figcaption>
+      </figure>
+      <figure style="margin:0">
+        <img src="assets/screenshot_running.png" alt="Breakdown Studio Qt app mid-run: QC stage at 89 percent with live log" loading="lazy"
+             style="width:100%;border:1px solid var(--line2);border-radius:8px">
+        <figcaption class="mono" style="font-size:11.5px;color:var(--mute);margin-top:8px">Mid-run: QC stage, live progress and log.</figcaption>
+      </figure>
+      <figure style="margin:0">
+        <img src="assets/screenshot_contact_sheet.jpg" alt="8K contact sheet of the 149-shot Tears of Steel demo cut" loading="lazy"
+             style="width:100%;border:1px solid var(--line2);border-radius:8px">
+        <figcaption class="mono" style="font-size:11.5px;color:var(--mute);margin-top:8px">The contact sheet: every shot, slate and TC burned in · (CC) Blender Foundation</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="assistant">
+  <div class="wrap">
+    <div class="match">
+      <span class="eyebrow">Built to work with your AI assistant</span>
+      <h2 style="margin-top:12px;max-width:24ch">The tool does the mechanical half. A briefed assistant does the judgment.</h2>
+      <p class="k" style="color:var(--dim);margin-top:14px;max-width:60ch">Detecting, framing, OCR and upload are automatic. But whether a vanished shot is a real drop or a protected invisible-VFX shot, whether two over-splits should merge, which master row a drifted code belongs to, that is judgment. Breakdown Studio ships a context pack that briefs Claude, or any AI pair, to help with exactly that, with the guardrails already baked in.</p>
+      <div class="match-grid">
+        <div class="kit">
+          <div class="k1 win"><span class="n">CLAUDE.md</span><div><b>A project brief</b><span>Every session opens already knowing your pipeline, the slate grammar, the matching rules and the traps, so the assistant is useful from the first message.</span></div></div>
+          <div class="k1"><span class="n">skills/</span><div><b>Seven judgment skills</b><span><span class="mono" style="color:var(--amber-soft)">intake-cut</span> runs the whole "new cut arrived" cycle and stops at your gates; <span class="mono" style="color:var(--amber-soft)">qc-boundaries</span>, <span class="mono" style="color:var(--amber-soft)">match-cut</span>, <span class="mono" style="color:var(--amber-soft)">reconcile-notes</span>, <span class="mono" style="color:var(--amber-soft)">update-master</span> do the judgment; <span class="mono" style="color:var(--amber-soft)">budget-deltas</span> and <span class="mono" style="color:var(--amber-soft)">vendor-refs</span> deliver the producer goods. Only one skill may write to the master, behind your sign-off.</span></div></div>
+          <div class="k1"><span class="n">memory/</span><div><b>A memory that learns the show</b><span>Eight seeded patterns: record a per-shot decision once, keyed on the slate not the timecode, and it carries into the next cut. Every re-cut surfaces only what changed.</span></div></div>
+          <div class="k1"><span class="n">PATTERNS.md</span><div><b>More than one assistant</b><span>When the show grows a bidding seat next to the breakdown seat: a shared channel, clear ownership, ping before structural change, and the peer re-verifies with its own harness. Production-proven.</span></div></div>
+        </div>
+        <div>
+          <h4 style="font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin:0 0 10px;font-weight:500">The guardrails, in action</h4>
+          <div class="term"><div class="head"><i></i><i></i><i></i></div><span class="cmd">&gt; /match-cut</span>
+  <span class="ok">✓</span> staged 264 exact · 30 visual · 51 new
+  <span class="warn">⚠</span> 3 codes duplicate, flagged red for review
+  <span class="mut">master untouched · awaiting your sign-off</span>
+
+<span class="cmd">&gt; /update-master</span>
+  <span class="bad">✗</span> blocked: 6 protected shots would be omitted
+  <span class="ok">→</span> restored · 328 rows updated in place
+  <span class="mut">costs &amp; producer columns never touched</span></div>
+          <p style="font-size:12.5px;color:var(--mute);margin-top:12px;max-width:44ch">Protected shots never auto-omit. Identity is the slate, never the timecode. Nothing hits the master without your approval. The rules travel with the tool.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="roadmap">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">Open, and honest about it</span>
+      <h2>Shipping now, and where it's going.</h2>
+      <p class="k">The ingest-to-sheet half is done and in daily use. The cross-cut intelligence was proven
+        on a real feature and is being folded into the open tool. Contributors welcome.</p></div>
+    <div class="road">
+      <div class="rd now"><h3><span class="pill ship">now</span> In your hands today</h3>
+        <ul>
+          <li>Detect &amp; split shots, offline</li>
+          <li>Start / mid / end frames + thumbnails</li>
+          <li>Google Drive upload + live Sheet breakdown, your account</li>
+          <li>8K contact sheet + burned-in reference clips</li>
+          <li>Blank template from a studio master</li>
+          <li>AI kit: a <span class="mono">CLAUDE.md</span> brief + 7 skills + memory to pair with Claude</li>
+          <li>Slate + VFX-note OCR straight into the sheet</li>
+          <li>Boundary QC + real show timecode</li>
+          <li>Compare-cuts change report</li>
+          <li>1:1 master matching with protected shots &amp; a review gate</li>
+          <li>Packaged Windows build (no Python needed) · MIT licence</li>
+        </ul></div>
+      <div class="rd next"><h3><span class="pill roll">next</span> Roadmap</h3>
+        <ul>
+          <li>In-app review UI for the uncertain queue (accept/override, side-by-side)</li>
+          <li>ShotGrid / Flow publish as an optional output</li>
+          <li>CSV / Airtable / SQLite backends for teams without Workspace</li>
+          <li>macOS and Linux packaged builds</li>
+        </ul></div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="maker">
+  <div class="wrap maker">
+    <div>
+      <span class="eyebrow">Who built it, and why</span>
+      <p class="quote" style="margin-top:16px">I built this because I was <em>hand-matching six hundred shots</em> across every re-cut, and losing real work in the noise. So I did what the show needed: designed the pipeline, wrote the tooling, and briefed the AI to carry the parts that don't automate. The tool does the bookkeeping so producers can do the producing.</p>
+      <p class="by"><b>Geoffrey Hancock</b> · VFX Supervisor &amp; Producer who also builds the tools. Designed and hardened this end to end on a live feature, from the neural shot detection to the AI guardrails, while running the show it was built for.</p>
+      <p class="by" style="margin-top:13px;color:var(--dim)">The portfolio point, in one line: not a VFX artist who bought some tooling, and not an engineer who read about VFX. One person who can supervise the shots, engineer the pipeline, and orchestrate the AI with the right guardrails, and ship all three into daily production use.</p>
+    </div>
+    <div class="specs">
+      <div class="spec"><span class="k">stack</span><span class="v">Python · TransNetV2 · ffmpeg · EasyOCR · CLIP</span></div>
+      <div class="spec"><span class="k">sync</span><span class="v">Google Sheets &amp; Drive, your account</span></div>
+      <div class="spec"><span class="k">runs</span><span class="v">Windows · macOS · Linux, offline</span></div>
+      <div class="spec"><span class="k">assistant</span><span class="v">CLAUDE.md brief + skills, pair with Claude</span></div>
+      <div class="spec"><span class="k">footage</span><span class="v">stays local, never uploaded</span></div>
+      <div class="spec"><span class="k">built by</span><span class="v">one operator + AI pair, on a live feature</span></div>
+      <div class="spec"><span class="k">licence</span><span class="v">open-source · MIT</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="get">
+  <div class="wrap">
+    <div class="final">
+      <span class="soon"><span class="dot"></span>Open-sourcing soon</span>
+      <h2>Star it, and get the launch notice.</h2>
+      <p>Breakdown Studio goes public shortly. Star the repo to follow along, or leave your email and I will send one note the day it ships.</p>
+      <div class="cta-row">
+        <a class="btn btn-a" href="https://github.com/thevfxsupervisor/breakdown-studio">★ Star on GitHub</a>
+        <a class="btn btn-b" href="mailto:geoff@wanglemedia.com">Get launch notice</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand" style="font-size:14px"><span class="logo"><i></i></span>Breakdown Studio</div>
+    <div class="mono">Shot breakdown, automated · © 2026 Geoffrey Hancock</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var grades=['linear-gradient(160deg,#20303a,#0e171c 70%)','linear-gradient(160deg,#3a2f22,#171008 70%)',
+    'linear-gradient(160deg,#243a34,#0d1a15 70%)','linear-gradient(160deg,#2e2430,#140d15 70%)',
+    'linear-gradient(160deg,#1f2c3a,#0c1119 70%)','linear-gradient(160deg,#3a271f,#160b07 70%)',
+    'linear-gradient(160deg,#26343a,#0d1518 70%)','linear-gradient(160deg,#2b3324,#10140a 70%)'];
+  var shots=[
+    {sc:'12/0884/II',tc:'01:14:22:04',note:'SET EXTENSION',code:'0884_02_020'},
+    {sc:'12/0885/I', tc:'01:14:29:11',note:'',code:'0885_01_010'},
+    {sc:'13/0519/III',tc:'01:15:02:18',note:'REMOVE WIRES',code:'0519_03_040'},
+    {sc:'13/0519/III',tc:'01:15:08:02',note:'BLUE SCREEN',code:'0519_03_050'},
+    {sc:'14/0932/I', tc:'01:15:20:15',note:'CLEAN UP',code:'0932_01_010'},
+    {sc:'14/0940/I', tc:'01:15:27:22',note:'',code:'0940_01_010'},
+    {sc:'15/0053/-', tc:'01:15:41:07',note:'DMP BACKGROUND',code:'0053_00_120'},
+    {sc:'15/0958/II',tc:'01:15:52:19',note:'MUZZLE FLASH',code:'0958_02_030'}];
+  var strip=document.getElementById('strip'),codesEl=document.getElementById('codes');
+  var cuts=[1,2,4,6,7];
+  shots.forEach(function(s,i){
+    var f=document.createElement('div');f.className='frame';
+    f.innerHTML='<div class="grade" style="background:'+grades[i%grades.length]+'"></div>'+
+      '<div class="bars t"></div><div class="bars b"></div><div class="bi tl">'+s.sc+'</div>'+
+      '<div class="bi tr">'+s.tc+'</div>'+(s.note?'<div class="bi bl">'+s.note+'</div>':'');
+    strip.appendChild(f);
+    var c=document.createElement('div');c.className='code';c.innerHTML='SHW_<b>'+s.code+'</b>';codesEl.appendChild(c);
+    if(cuts.indexOf(i)>=0&&i>0){var cm=document.createElement('div');cm.className='cutmark';
+      cm.style.left=(i/shots.length*100)+'%';strip.appendChild(cm);}
+  });
+  function reveal(){codesEl.querySelectorAll('.code').forEach(function(c){c.classList.add('on')});
+    strip.querySelectorAll('.cutmark').forEach(function(m){m.style.opacity=1});}
+  if(reduce){reveal();document.getElementById('scan').textContent='SHOTS SPLIT';return;}
+  var ph=document.getElementById('ph');
+  var cms=Array.prototype.slice.call(strip.querySelectorAll('.cutmark'));
+  var codes=Array.prototype.slice.call(codesEl.querySelectorAll('.code'));
+  var start=null,DUR=2600;
+  function step(ts){if(!start)start=ts;var p=Math.min((ts-start)/DUR,1);
+    ph.style.opacity=p<1?1:0;ph.style.left=(p*100)+'%';
+    cms.forEach(function(m){if(p>=parseFloat(m.style.left)/100)m.style.opacity=1;});
+    codes.forEach(function(c,i){if(p>=(i/shots.length)+0.02)c.classList.add('on');});
+    if(p<1)requestAnimationFrame(step);else{reveal();document.getElementById('scan').textContent='SHOTS SPLIT';}}
+  setTimeout(function(){requestAnimationFrame(step);},500);
+  function drawWires(){var svg=document.getElementById('wires');if(!svg)return;
+    var host=svg.parentElement.getBoundingClientRect();
+    var cols=svg.parentElement.querySelectorAll('.col2 > div');if(cols.length<2)return;
+    var left=cols[0].querySelectorAll('.rowline'),right=cols[1].querySelectorAll('.rowline');
+    var pairs=[[0,0],[1,1],[2,2]];svg.innerHTML='';
+    pairs.forEach(function(pr){var a=left[pr[0]].getBoundingClientRect(),b=right[pr[1]].getBoundingClientRect();
+      var x1=a.right-host.left,y1=a.top-host.top+a.height/2,x2=b.left-host.left,y2=b.top-host.top+b.height/2,mx=(x1+x2)/2;
+      var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d','M'+x1+','+y1+' C'+mx+','+y1+' '+mx+','+y2+' '+x2+','+y2);svg.appendChild(p);});}
+  window.addEventListener('resize',drawWires);window.addEventListener('load',function(){setTimeout(drawWires,60);});drawWires();
+})();
+</script>
