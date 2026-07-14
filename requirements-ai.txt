@@ -1,0 +1,11 @@
+# AI features: shot detection (TransNetV2) + burn-in OCR (EasyOCR).
+# Installed into the SAME bs_env by the installer's AI-features question, so there is
+# only one interpreter to point Settings at.
+# GPU users who want a specific CUDA torch wheel: install it into bs_env FIRST from
+# https://pytorch.org, then run the installer. pip will see torch already satisfies
+# the requirement below and will not replace it.
+torch>=2.0
+transnetv2-pytorch
+easyocr
+ffmpeg-python
+numpy>=1.24

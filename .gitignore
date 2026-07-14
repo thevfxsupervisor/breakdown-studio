@@ -1,57 +1,14 @@
-# Configuration & secrets
 config.json
-config.local.json
 *.gtoken.json
-.gtoken.json
 *token*.json
 .credentials/
-.env
-.env.local
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.egg-info/
 dist/
 build/
-
-# Virtual environments
-bs_env/
-transnet_env/
-.venv/
-venv/
-ENV/
-
-# Pipeline outputs
-output/
-*_output/
-pipeline_output/
-frames/
-thumbs/
-cuts/
-refclips/
-scenes/
-scenes_transnet/
-*.csv
-!config.example.json
-
-# Logs
-*.log
-*.txt
-!README.md
-
-# OS
+__pycache__/
+*.pyc
+*.lnk
 .DS_Store
-Thumbs.db
-.AppleDouble
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+.venv/
+tokens/
+packaging/get-pip.py
 UX_PLAN.md

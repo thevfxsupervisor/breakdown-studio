@@ -1,0 +1,7 @@
+# TransNetV2 detection environment (heavy; GPU optional but recommended).
+# Install into a SEPARATE Python you point Settings -> "TransNetV2 Python" at.
+# For CUDA, install the matching torch wheel from https://pytorch.org first, then:
+torch>=2.0
+transnetv2-pytorch
+ffmpeg-python
+numpy>=1.24
