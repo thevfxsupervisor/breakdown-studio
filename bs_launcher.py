@@ -15,6 +15,7 @@ various CLI tools that used to be separate "python script.py" invocations:
   breakdown-studio template ...    -> make_blank_template.main()  (blank template from master)
   breakdown-studio fetch    ...    -> bs_fetch.main()       (download a video URL to a local file)
   breakdown-studio enrich   ...    -> bs_enrich.main()      (transcribe/describe; optional module)
+  breakdown-studio doctor           -> bs_doctor.main()     (environment self-check, PASS/WARN/FAIL)
   breakdown-studio tk               launch the Tkinter GUI explicitly
 
 Not included here: TransNetV2 detection (needs torch, a separate interpreter always) and
@@ -55,6 +56,7 @@ SUBCOMMANDS = {
     "fetch": ("bs_fetch", "main"),
     "enrich": ("bs_enrich", "main"),
     "miro": ("bs_miro", "main"),
+    "doctor": ("bs_doctor", "main"),
 }
 
 

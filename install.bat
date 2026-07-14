@@ -2,16 +2,17 @@
 rem ============================================================================
 rem Breakdown Studio - one-shot installer (Windows)
 rem   1) validates the Python interpreter (guards against the Microsoft Store stub)
-rem   2) creates the worker venv (Pillow, numpy, Google libs)
-rem   3) optionally creates the TransNetV2 venv (large; torch)
-rem   4) checks ffmpeg and Tkinter (warnings only, non-fatal)
-rem   5) prints the paths to paste into Settings
+rem   2) creates the worker environment (bs_env): Pillow, numpy, Google libs
+rem   3) asks ONE plain-language question about AI features (shot detection, OCR)
+rem      and installs them into the SAME bs_env if wanted
+rem   4) checks ffmpeg and Tkinter (offers to fetch ffmpeg if missing; non-fatal)
+rem   5) writes config.json for you and creates the desktop shortcut
 rem ============================================================================
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo.
-echo [1/4] Checking for a working Python interpreter ...
+echo [1/5] Checking for a working Python interpreter ...
 
 set "PYEXE="
 
@@ -48,7 +49,7 @@ for /f "usebackq delims=" %%V in (`%PYEXE% -c "import sys; print(sys.version.spl
 echo   Using Python !PYVER! ( %PYEXE% )
 
 echo.
-echo [2/4] Creating worker environment (bs_env) ...
+echo [2/5] Creating worker environment (bs_env) ...
 %PYEXE% -m venv bs_env || (echo Could not create bs_env & pause & exit /b 1)
 call bs_env\Scripts\activate.bat
 python -m pip install --upgrade pip
@@ -68,42 +69,138 @@ if errorlevel 1 (
 )
 
 echo.
-echo   Checking for ffmpeg on PATH ...
-where ffmpeg >nul 2>nul
-if errorlevel 1 (
-    echo   WARNING: ffmpeg was not found on PATH.
-    echo            Frames, cuts, and reference clips will not work until it is available.
-    echo            Download it from https://ffmpeg.org, or point Settings - ffmpeg / ffprobe
-    echo            at the full path to your ffmpeg.exe / ffprobe.exe.
+echo [3/5] AI features ...
+set "AI_INSTALLED="
+set /p AIQ=Install AI features (shot detection + burn-in OCR)? ~2 GB download, recommended. [Y/n]:
+if /I "%AIQ%"=="n" (
+    echo   Skipped. These stages will be unavailable until you install AI features:
+    echo     - Detect shots
+    echo     - Slate OCR
+    echo     - VFX-note OCR
+    echo     - Boundary QC
+    echo   Re-run install.bat later and answer Y to add them, or run install-transnet.bat
+    echo   for the advanced ^(separate GPU/CUDA environment^) path.
 ) else (
-    echo   OK: ffmpeg found on PATH.
+    echo   Installing AI features into bs_env, this can take a while ...
+    call bs_env\Scripts\activate.bat
+    python -m pip install -r requirements-ai.txt
+    call bs_env\Scripts\deactivate.bat
+    set "AI_INSTALLED=1"
 )
 
 echo.
-set /p DOTN=Install the TransNetV2 detection env now? It is large (torch). [y/N]:
-if /I "%DOTN%"=="y" (
-  echo [3/4] Creating TransNetV2 environment (transnet_env) ...
-  %PYEXE% -m venv transnet_env
-  call transnet_env\Scripts\activate.bat
-  python -m pip install --upgrade pip
-  python -m pip install -r requirements-transnet.txt
-  call transnet_env\Scripts\deactivate.bat
+echo [4/5] Checking for ffmpeg ...
+set "FFMPEG_PATH="
+set "FFPROBE_PATH="
+
+for /f "delims=" %%F in ('where ffmpeg 2^>nul') do if not defined FFMPEG_PATH set "FFMPEG_PATH=%%F"
+for /f "delims=" %%F in ('where ffprobe 2^>nul') do if not defined FFPROBE_PATH set "FFPROBE_PATH=%%F"
+
+if not defined FFMPEG_PATH (
+    if exist "%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe" (
+        set "FFMPEG_PATH=%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe"
+        if exist "%LOCALAPPDATA%\Microsoft\WinGet\Links\ffprobe.exe" set "FFPROBE_PATH=%LOCALAPPDATA%\Microsoft\WinGet\Links\ffprobe.exe"
+    )
+)
+if not defined FFMPEG_PATH (
+    if exist "C:\ProgramData\chocolatey\bin\ffmpeg.exe" (
+        set "FFMPEG_PATH=C:\ProgramData\chocolatey\bin\ffmpeg.exe"
+        if exist "C:\ProgramData\chocolatey\bin\ffprobe.exe" set "FFPROBE_PATH=C:\ProgramData\chocolatey\bin\ffprobe.exe"
+    )
+)
+
+if defined FFMPEG_PATH (
+    echo   OK: ffmpeg found at !FFMPEG_PATH!
 ) else (
-  echo Skipped TransNetV2 env. Run install-transnet.bat later if you want local detection.
+    echo   ffmpeg was not found on PATH or in the usual install spots.
+    set /p GETFF=Download ffmpeg now into tools\ffmpeg\, about 80 MB? [y/N]:
+    if /I "!GETFF!"=="y" (
+        echo   Downloading ffmpeg-release-essentials.zip from gyan.dev ...
+        if not exist tools\ffmpeg mkdir tools\ffmpeg
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile 'tools\ffmpeg\ffmpeg.zip' } catch { exit 1 }"
+        if errorlevel 1 (
+            echo   Download failed. Get ffmpeg manually from https://www.gyan.dev/ffmpeg/builds/ and set it in Settings.
+        ) else (
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path 'tools\ffmpeg\ffmpeg.zip' -DestinationPath 'tools\ffmpeg' -Force"
+            del /q "tools\ffmpeg\ffmpeg.zip" >nul 2>nul
+            for /f "delims=" %%D in ('dir /b /ad "tools\ffmpeg\ffmpeg-*" 2^>nul') do set "FFDIR=%%D"
+            if defined FFDIR (
+                if exist "tools\ffmpeg\!FFDIR!\bin\ffmpeg.exe" set "FFMPEG_PATH=%~dp0tools\ffmpeg\!FFDIR!\bin\ffmpeg.exe"
+                if exist "tools\ffmpeg\!FFDIR!\bin\ffprobe.exe" set "FFPROBE_PATH=%~dp0tools\ffmpeg\!FFDIR!\bin\ffprobe.exe"
+            )
+            if defined FFMPEG_PATH (
+                echo   OK: ffmpeg downloaded to !FFMPEG_PATH!
+            ) else (
+                echo   Could not locate ffmpeg.exe after extraction. Get it manually from
+                echo   https://www.gyan.dev/ffmpeg/builds/ and set it in Settings.
+            )
+        )
+    ) else (
+        echo   Skipped. Get ffmpeg from https://www.gyan.dev/ffmpeg/builds/ and set it in
+        echo   Settings, or re-run install.bat later to try the download again.
+    )
 )
 
 echo.
-echo [4/4] Creating desktop-style shortcut (Breakdown Studio.lnk) ...
+echo [5/5] Creating desktop-style shortcut (Breakdown Studio.lnk) ...
 powershell -NoProfile -ExecutionPolicy Bypass -File "_make_shortcut.ps1"
 
 echo.
+echo   Writing config.json ...
+if not exist config.json (
+    copy /y config.example.json config.json >nul
+)
+
+set "WORKER_PY=%~dp0bs_env\Scripts\python.exe"
+set "TRANSNET_PY="
+if defined AI_INSTALLED set "TRANSNET_PY=%WORKER_PY%"
+
+set "CFGPY=%TEMP%\bs_write_config_%RANDOM%.py"
+if exist "%CFGPY%" del /q "%CFGPY%" >nul 2>nul
+echo import json, sys, os> "%CFGPY%"
+echo path = sys.argv[1]>> "%CFGPY%"
+echo pairs = sys.argv[2:]>> "%CFGPY%"
+echo updates = {}>> "%CFGPY%"
+echo i = 0 >> "%CFGPY%"
+echo while i ^< len(pairs):>> "%CFGPY%"
+echo     updates[pairs[i]] = pairs[i + 1]>> "%CFGPY%"
+echo     i += 2 >> "%CFGPY%"
+echo with open(path, "r", encoding="utf-8") as f:>> "%CFGPY%"
+echo     cfg = json.load(f)>> "%CFGPY%"
+echo def is_placeholder(key, value):>> "%CFGPY%"
+echo     if not isinstance(value, str) or value.strip() == "":>> "%CFGPY%"
+echo         return True>> "%CFGPY%"
+echo     v = value.strip()>> "%CFGPY%"
+echo     if v.startswith("/path/to"):>> "%CFGPY%"
+echo         return True>> "%CFGPY%"
+echo     for frag in ("worker_env", "transnet_env"):>> "%CFGPY%"
+echo         if frag in v and not os.path.exists(v):>> "%CFGPY%"
+echo             return True>> "%CFGPY%"
+echo     return False>> "%CFGPY%"
+echo changed = False>> "%CFGPY%"
+echo for key, value in updates.items():>> "%CFGPY%"
+echo     if value == "":>> "%CFGPY%"
+echo         continue>> "%CFGPY%"
+echo     current = cfg.get(key, "")>> "%CFGPY%"
+echo     if is_placeholder(key, current):>> "%CFGPY%"
+echo         cfg[key] = value>> "%CFGPY%"
+echo         changed = True>> "%CFGPY%"
+echo if changed:>> "%CFGPY%"
+echo     with open(path, "w", encoding="utf-8") as f:>> "%CFGPY%"
+echo         json.dump(cfg, f, indent=2)>> "%CFGPY%"
+echo         f.write("\n")>> "%CFGPY%"
+echo     print("config.json updated")>> "%CFGPY%"
+echo else:>> "%CFGPY%"
+echo     print("config.json already configured, no changes needed")>> "%CFGPY%"
+
+bs_env\Scripts\python.exe "%CFGPY%" "%~dp0config.json" worker_python "%WORKER_PY%" transnet_python "%TRANSNET_PY%" ffmpeg "%FFMPEG_PATH%" ffprobe "%FFPROBE_PATH%"
+del /q "%CFGPY%" >nul 2>nul
+
+echo.
 echo ============================================================================
-echo  Done. Double-click "Breakdown Studio.lnk" (or "Breakdown Studio.bat"),
-echo  open Settings, and set:
-echo    Worker Python    = %~dp0bs_env\Scripts\python.exe
-echo    TransNetV2 Python = %~dp0transnet_env\Scripts\python.exe   (if installed)
-echo    ffmpeg / ffprobe  = your ffmpeg binaries (https://ffmpeg.org)
-echo    Google OAuth client secret = your client_secret.json (see README)
+echo  Done. Settings are pre-filled (config.json written).
+echo  Double-click "Breakdown Studio.lnk", or run: python3 breakdown_studio.py
+echo  Google OAuth client secret still needs to be set in Settings (see README).
 echo ============================================================================
 pause
 exit /b 0

@@ -25,7 +25,9 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from bs_launch_helpers import worker_argv
+from bs_launch_helpers import (
+    worker_argv, adopt_bs_env, resolve_detect_interpreter, probe_can_import, doctor_argv,
+)
 
 APP_DIR = Path(__file__).resolve().parent
 CONFIG = APP_DIR / "config.json"
@@ -163,13 +165,21 @@ class App(tk.Tk):
         self.geometry("980x720")
         self.minsize(820, 600)
         self.cfg = autodetect(load_config())
+        # preflight self-heal (UX_PLAN.md P0.3): adopt the installer's bs_env if worker_python
+        # is blank/stale, silently -- logged once the log widget exists, below.
+        adopted = adopt_bs_env(self.cfg, APP_DIR)
+        if adopted:
+            save_config(self.cfg)
         self.q = queue.Queue()
         self.proc = None
         self.worker = None
         self.stop_flag = threading.Event()
         self.stage_vars = {}
+        self._detect_interpreter = None  # resolved per-run by _run_selected; see _cmd_for
         self._build()
         self._show_preflight_warnings()
+        if adopted:
+            self._log(f"Adopted worker environment: {self.cfg['worker_python']}\n")
         self._update_url_hint()
         self.after(80, self._drain)
 
@@ -390,7 +400,42 @@ class App(tk.Tk):
             win.destroy()
             self._log("[settings saved]\n")
             self._show_preflight_warnings()
+        ttk.Button(win, text="Run doctor", command=self._run_doctor).grid(
+            row=len(rows), column=0, sticky="w", padx=8, pady=10)
         ttk.Button(win, text="Save", command=save).grid(row=len(rows), column=1, sticky="e", pady=10)
+
+    def _run_doctor(self):
+        """Settings 'Run doctor' button: shell '<worker_python> bs_launcher.py doctor' and show
+        its PASS/WARN/FAIL table in a small scrolled-text dialog (UX_PLAN.md P3)."""
+        cmd = doctor_argv(self.cfg.get("worker_python"))
+        dlg = tk.Toplevel(self)
+        dlg.title("Doctor")
+        dlg.geometry("760x520")
+        dlg.transient(self)
+        body = ttk.Frame(dlg)
+        body.pack(fill="both", expand=True, padx=8, pady=8)
+        txt = tk.Text(body, wrap="word", bg="#111", fg="#d8d8d8",
+                      insertbackground="#d8d8d8", font=("Consolas", 9))
+        sb = ttk.Scrollbar(body, command=txt.yview)
+        txt.config(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        txt.pack(side="left", fill="both", expand=True)
+        txt.insert("end", "Running doctor...\n")
+
+        def work():
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace", cwd=str(APP_DIR))
+                out = (r.stdout or "") + (r.stderr or "")
+            except Exception as e:
+                out = f"ERROR running doctor: {e}\n"
+
+            def show():
+                txt.delete("1.0", "end")
+                txt.insert("end", out)
+            self.after(0, show)
+
+        threading.Thread(target=work, daemon=True).start()
 
     # ---- config persistence -------------------------------------------------
     def _persist(self):
@@ -523,10 +568,21 @@ class App(tk.Tk):
             messagebox.showerror("Breakdown Studio",
                                  "Select a valid movie file, or paste a video URL.")
             return
-        if "detect" in stages and not self.cfg.get("transnet_python"):
-            messagebox.showerror("Breakdown Studio",
-                                 "Set the TransNetV2 Python in Settings (needs torch).")
-            return
+        # Detect self-heal (UX_PLAN.md P0.3): try the dedicated transnet_python env first,
+        # then fall back to worker_python if IT can already import transnetv2_pytorch
+        # (single-venv installs). If neither works, skip Detect instead of failing the run.
+        self._detect_interpreter = None
+        if "detect" in stages:
+            self._detect_interpreter = resolve_detect_interpreter(
+                self.cfg, lambda p: probe_can_import(p, "transnetv2_pytorch"))
+            if self._detect_interpreter is None:
+                stages = [sid for sid in stages if sid != "detect"]
+                self._log("\nDetect skipped: AI features not installed. Re-run the installer "
+                          "and answer Y to the AI features question, or set TransNetV2 Python "
+                          "in Settings.\n")
+                if not stages:
+                    messagebox.showerror("Breakdown Studio", "Select at least one stage.")
+                    return
         self._persist()
         self.stop_flag.clear()
         self.run_btn.config(state="disabled")
@@ -565,7 +621,12 @@ class App(tk.Tk):
                     "--config", str(CONFIG)]
             return worker_argv(Path(sd) / "bs_enrich.py", args, wp)
         if sid == "detect":
-            return [self.cfg["transnet_python"], str(Path(sd) / "transnet_detect.py"),
+            # _detect_interpreter is resolved once per run in _run_selected (transnet_python,
+            # else worker_python if it can import transnetv2_pytorch); the cfg lookups here are
+            # just a defensive fallback in case _cmd_for is ever called outside that path.
+            interp = (self._detect_interpreter or self.cfg.get("transnet_python")
+                     or self.cfg.get("worker_python") or sys.executable)
+            return [interp, str(Path(sd) / "transnet_detect.py"),
                     "--movie", movie, "--output-base", base, "--threshold", self.thresh_var.get()]
         if sid in ("frames", "cuts"):
             extra = ["--encoder", self.enc_var.get()] if sid == "cuts" else []

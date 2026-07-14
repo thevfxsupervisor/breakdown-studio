@@ -2,14 +2,17 @@
 # ============================================================================
 # Breakdown Studio - one-shot installer (macOS / Linux)
 #   1) validates the Python interpreter
-#   2) creates the worker venv (Pillow, numpy, Google libs)
-#   3) optionally creates the TransNetV2 venv (large; torch)
-#   4) checks ffmpeg and Tkinter (warnings only, non-fatal)
+#   2) creates the worker environment (bs_env): Pillow, numpy, Google libs
+#   3) asks ONE plain-language question about AI features (shot detection, OCR)
+#      and installs them into the SAME bs_env if wanted
+#   4) checks ffmpeg (prints the install line for your platform if missing)
+#   5) writes config.json for you, makes breakdown_studio.command runnable,
+#      and (Linux only) offers a .desktop launcher
 # ============================================================================
 set -e
 cd "$(dirname "$0")"
 
-echo "[1/4] Checking for a working Python 3 interpreter ..."
+echo "[1/5] Checking for a working Python 3 interpreter ..."
 if ! command -v python3 >/dev/null; then
     echo
     echo "============================================================================"
@@ -35,7 +38,7 @@ PYVER="$(python3 -c 'import sys; print(sys.version.split()[0])')"
 echo "  Using Python $PYVER ($(command -v python3))"
 
 echo
-echo "[2/4] Creating worker environment (bs_env) ..."
+echo "[2/5] Creating worker environment (bs_env) ..."
 python3 -m venv bs_env
 ./bs_env/bin/python -m pip install --upgrade pip
 ./bs_env/bin/python -m pip install -r requirements-worker.txt
@@ -53,34 +56,134 @@ else
 fi
 
 echo
-echo "  Checking for ffmpeg on PATH ..."
+echo "[3/5] AI features ..."
+AI_INSTALLED=""
+read -r -p "Install AI features (shot detection + burn-in OCR)? ~2 GB download, recommended. [Y/n] " aiq
+if [[ "$aiq" =~ ^[Nn]$ ]]; then
+    echo "  Skipped. These stages will be unavailable until you install AI features:"
+    echo "    - Detect shots"
+    echo "    - Slate OCR"
+    echo "    - VFX-note OCR"
+    echo "    - Boundary QC"
+    echo "  Re-run install.sh later and answer Y to add them, or run install-transnet.sh"
+    echo "  for the advanced (separate GPU/CUDA environment) path."
+else
+    echo "  Installing AI features into bs_env (this can take a while) ..."
+    ./bs_env/bin/python -m pip install -r requirements-ai.txt
+    AI_INSTALLED="1"
+fi
+
+echo
+echo "[4/5] Checking for ffmpeg ..."
 if command -v ffmpeg >/dev/null 2>&1; then
     echo "  OK: ffmpeg found on PATH."
 else
     echo "  WARNING: ffmpeg was not found on PATH."
     echo "           Frames, cuts, and reference clips will not work until it is available."
-    echo "           Install it (e.g. 'brew install ffmpeg' / 'apt install ffmpeg') from"
-    echo "           https://ffmpeg.org, or point Settings - ffmpeg / ffprobe at the full path."
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "           Install it with:  brew install ffmpeg"
+    else
+        echo "           Install it with:  sudo apt install ffmpeg   (Debian/Ubuntu)"
+        echo "                        or:  sudo dnf install ffmpeg   (Fedora)"
+    fi
+    echo "           Or point Settings - ffmpeg / ffprobe at the full path to your binaries."
 fi
 
 echo
-read -r -p "Install the TransNetV2 detection env now? It is large (torch). [y/N] " ans
-if [[ "$ans" =~ ^[Yy]$ ]]; then
-  echo "[3/4] Creating TransNetV2 environment (transnet_env) ..."
-  python3 -m venv transnet_env
-  ./transnet_env/bin/python -m pip install --upgrade pip
-  ./transnet_env/bin/python -m pip install -r requirements-transnet.txt
-else
-  echo "Skipped TransNetV2 env."
+echo "[5/5] Writing config.json ..."
+if [ ! -f config.json ]; then
+    cp config.example.json config.json
+fi
+
+WORKER_PY="$(pwd)/bs_env/bin/python"
+TRANSNET_PY=""
+if [ -n "$AI_INSTALLED" ]; then
+    TRANSNET_PY="$WORKER_PY"
+fi
+FFMPEG_PATH="$(command -v ffmpeg 2>/dev/null || true)"
+FFPROBE_PATH="$(command -v ffprobe 2>/dev/null || true)"
+
+CFGPY="$(mktemp -t bs_write_config.XXXXXX).py"
+cat > "$CFGPY" <<'PYEOF'
+import json, sys, os
+
+path = sys.argv[1]
+pairs = sys.argv[2:]
+updates = {}
+i = 0
+while i < len(pairs):
+    updates[pairs[i]] = pairs[i + 1]
+    i += 2
+
+with open(path, "r", encoding="utf-8") as f:
+    cfg = json.load(f)
+
+def is_placeholder(key, value):
+    if not isinstance(value, str) or value.strip() == "":
+        return True
+    v = value.strip()
+    if v.startswith("/path/to"):
+        return True
+    for frag in ("worker_env", "transnet_env"):
+        if frag in v and not os.path.exists(v):
+            return True
+    return False
+
+changed = False
+for key, value in updates.items():
+    if value == "":
+        continue
+    current = cfg.get(key, "")
+    if is_placeholder(key, current):
+        cfg[key] = value
+        changed = True
+
+if changed:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+    print("config.json updated")
+else:
+    print("config.json already configured, no changes needed")
+PYEOF
+
+./bs_env/bin/python "$CFGPY" "$(pwd)/config.json" \
+    worker_python "$WORKER_PY" \
+    transnet_python "$TRANSNET_PY" \
+    ffmpeg "$FFMPEG_PATH" \
+    ffprobe "$FFPROBE_PATH"
+rm -f "$CFGPY"
+
+chmod +x breakdown_studio.command 2>/dev/null || true
+
+if [[ "$(uname)" != "Darwin" ]]; then
+    echo
+    read -r -p "Create a Linux desktop launcher (breakdown-studio.desktop)? [y/N] " deskans
+    if [[ "$deskans" =~ ^[Yy]$ ]]; then
+        DESKTOP_DIR="$HOME/.local/share/applications"
+        mkdir -p "$DESKTOP_DIR" 2>/dev/null || true
+        DESKTOP_FILE="$DESKTOP_DIR/breakdown-studio.desktop"
+        {
+            echo "[Desktop Entry]"
+            echo "Type=Application"
+            echo "Name=Breakdown Studio"
+            echo "Exec=$WORKER_PY $(pwd)/breakdown_studio.py"
+            echo "Path=$(pwd)"
+            echo "Terminal=false"
+            echo "Categories=Graphics;"
+        } > "$DESKTOP_FILE" 2>/dev/null || echo "  Could not write $DESKTOP_FILE (non-fatal, skipping)."
+        if [ -f "$DESKTOP_FILE" ]; then
+            chmod +x "$DESKTOP_FILE" 2>/dev/null || true
+            echo "  Created $DESKTOP_FILE"
+        fi
+    fi
 fi
 
 cat <<EOF
 
 ============================================================================
- Done. Launch the app (python3 breakdown_studio.py), open Settings, and set:
-   Worker Python     = $(pwd)/bs_env/bin/python
-   TransNetV2 Python = $(pwd)/transnet_env/bin/python   (if installed)
-   ffmpeg / ffprobe  = your ffmpeg binaries (https://ffmpeg.org)
-   Google OAuth client secret = your client_secret.json (see README)
+ Done. Settings are pre-filled (config.json written).
+ Launch the app: ./breakdown_studio.command   or   python3 breakdown_studio.py
+ Google OAuth client secret still needs to be set in Settings (see README).
 ============================================================================
 EOF

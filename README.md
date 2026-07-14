@@ -71,21 +71,22 @@ Check these before running the installer. The installer validates most of this f
 
 - [ ] **Python 3.9+ from [python.org](https://www.python.org/downloads/)** (tick "Add python.exe to PATH" during setup on Windows). This includes Tkinter, which the desktop GUI needs.
       **Windows note:** the `python` command that ships with Windows by default is often a Microsoft Store stub, not a real interpreter. It looks like Python on the command line but fails (or opens the Store) when a script tries to use it. The installer detects this and will tell you, but installing from python.org first avoids the problem entirely.
-- [ ] **ffmpeg and ffprobe** on PATH, or know where their binaries are so you can set them later in Settings (get them from https://ffmpeg.org or your package manager).
-- [ ] **Disk space**: plan for roughly 50% of the movie file size (frames, thumbnails, cut clips can be large).
+- [ ] **ffmpeg and ffprobe**: nice to have on PATH already, but not required before you start. On Windows, the installer can download a portable copy for you if it does not find one. On macOS/Linux, it will print the exact `brew install ffmpeg` / `apt install ffmpeg` line if it is missing.
+- [ ] **Disk space**: plan for roughly 50% of the movie file size (frames, thumbnails, cut clips can be large), plus about 2 GB if you install the AI features below.
 
-Everything else (Pillow, numpy, the Google API libraries, and optionally torch/TransNetV2) is installed by the installer into its own virtual environment, so you do not need to install those yourself.
+Everything else (Pillow, numpy, the Google API libraries, and the optional AI features) is installed by the installer into one virtual environment, so you do not need to install those yourself.
 
 ### Windows
 
 1. Download or clone this folder.
 2. Double-click `install.bat`.
    - It first checks that a real Python 3.9+ interpreter is available (it prefers the `py -3` launcher, falls back to `python`, and detects the Microsoft Store stub). If it cannot find one, it stops and tells you to install Python from python.org.
-   - It creates two Python virtual environments: `worker_env` (Pillow, numpy, Google libraries) and optionally `transnet_env` (torch, TransNetV2). The installer will ask you which to create.
-   - It checks for `ffmpeg` on PATH and for Tkinter in the new environment, printing a warning (not a hard failure) if either is missing.
-   - It prints the path to each Python interpreter. Copy these into Settings in the app.
+   - It creates one virtual environment, `bs_env`, in this folder, and installs the core dependencies (Pillow, numpy, Google libraries) into it.
+   - It asks one question: **"Install AI features (shot detection + burn-in OCR)? ~2 GB download, recommended. [Y/n]"**. Answering yes (the default) installs torch, TransNetV2, and EasyOCR into the same `bs_env`, so Detect and the OCR stages work out of the box. Answering no skips that download; the app will simply skip those stages later with a clear message instead of failing.
+   - If ffmpeg is not found on PATH, it offers to download a portable copy into `tools/ffmpeg/` for you.
+   - It writes `config.json` itself with the interpreter and ffmpeg paths it just set up, so Settings is pre-filled when you first open the app.
    - It creates `Breakdown Studio.lnk` (the recommended launcher).
-3. Double-click `Breakdown Studio.lnk` to run the app.
+3. Double-click `Breakdown Studio.lnk` to run the app. Settings should already show the right paths; just verify them.
 
 If `install.bat` does not work (Windows Defender or network sandbox), run it in a PowerShell terminal:
 ```powershell
@@ -100,24 +101,26 @@ cd <breakdown_studio_folder>
    ```bash
    bash install.sh
    ```
-   It will create the same environments and print the paths to set in Settings.
+   It creates the same `bs_env`, asks the same one AI-features question, and writes `config.json` with the paths it set up.
 3. Launch the app:
    ```bash
    python3 breakdown_studio.py
    ```
    Or on macOS, double-click `breakdown_studio.command`.
 
+### Advanced: separate detection env (GPU/CUDA)
+
+Most people should skip this: the default installer puts everything (including TransNetV2 and EasyOCR) into `bs_env`, and that is enough for GPU acceleration on most setups. Use a separate env only if you need a specific CUDA build of torch that the default install does not give you.
+
+- Windows: run `install-transnet.bat`. It creates `transnet_env` with your chosen torch wheel.
+- macOS/Linux: run `install-transnet.sh` (same idea).
+- In Settings, set **TransNetV2 Python** to that environment's interpreter. Everything else keeps using `bs_env`.
+
 ### First run: Settings
 
 1. **Open Settings…** from the app.
-2. **Point it at your Python interpreters:**
-   - **Worker Python**: from the installer output (e.g., `C:\Users\you\AppData\Local\breakdown_studio_worker\Scripts\python.exe`).
-   - **TransNetV2 Python**: same, but from the `transnet_env` (or leave blank if you skipped TransNetV2 during install). This is only needed if you want to run shot detection in the app; you can also pre-run detection separately.
-   - **ffmpeg** and **ffprobe**: usually auto-detected from your PATH. If not found, point to them manually.
-3. **For the breakdown sheet (optional):** if you want to build Google Sheets:
-   - In the [Google Cloud Console](https://console.cloud.google.com/), create a project, enable the Sheets API and Drive API, create an OAuth Desktop app credential, and download the JSON.
-   - In Settings, set **Google OAuth client secret JSON** to that file.
-   - Leave **Google token cache** blank (it defaults to `.gtoken.json` beside the app).
+2. **Verify the paths.** The installer already filled in Worker Python, TransNetV2 Python (if you installed the AI features), ffmpeg, and ffprobe. You should not need to type anything here; just confirm they point at real files. If a path looks wrong or empty, click **Run doctor** (see Troubleshooting) to see exactly what is missing.
+3. **For the breakdown sheet (optional):** if you want to build Google Sheets, see `SETUP_GOOGLE.md` for the one-time Google Cloud Console setup (about 10 minutes), then set **Google OAuth client secret JSON** in Settings to the downloaded file. Leave **Google token cache** blank (it defaults to `.gtoken.json` beside the app).
 
 All settings save to `config.json` next to the app, so each machine keeps its own paths.
 
@@ -135,17 +138,29 @@ All settings save to `config.json` next to the app, so each machine keeps its ow
 
 | Stage | What it does | Output | Engine |
 |---|---|---|---|
-| **Detect** | Find shot boundaries in the movie using TransNetV2 neural net. Adjustable threshold (0.25 is the default sweet spot; lower finds more cuts). | `scenes_transnet/<movie>-Scenes.csv` | torch / TransNetV2 |
+| **Detect** | Find shot boundaries in the movie using TransNetV2 neural net. Adjustable threshold (0.25 is the default sweet spot; lower finds more cuts). If you skipped the AI features during install, this stage is auto-skipped with a clear log message instead of failing. | `scenes_transnet/<movie>-Scenes.csv` | torch / TransNetV2 |
 | **Frames** | Extract the first, middle, and last frame of each shot at full resolution. Accurate to the frame (the 3-frame extraction is used to OCR VFX notes and detect boundaries). | `frames/SHW_<tcid>-{start,mid,end}.jpg` | ffmpeg |
 | **Thumbnails** | Downscale the frames to 480x270 for the contact sheet and Google sheet. Happens fast. | `thumbs/SHW_<tcid>-{start,mid,end}.jpg` | Pillow |
-| **Slate OCR** (optional) | Read the burned-in slate (clapper number, top-left) to derive official shot codes. Tolerant to OCR noise and multi-take slates. Requires `pip install easyocr`. | `_<movie>_ocr_slate.csv` | EasyOCR |
-| **VFX-note OCR** (optional) | Read burned-in VFX notes (bottom-left), flag which shots are VFX, and reconcile across the 3 frames (start/mid/end) to spot note bleed or incomplete reads. Requires `pip install easyocr`. | `_<movie>_ocr_notes.csv` | EasyOCR |
+| **Slate OCR** (optional) | Read the burned-in slate (clapper number, top-left) to derive official shot codes. Tolerant to OCR noise and multi-take slates. Installed automatically if you answered Y to the AI-features question; otherwise auto-skipped. Verify your crop boxes with `probecrops` (see below) before trusting the output. | `_<movie>_ocr_slate.csv` | EasyOCR |
+| **VFX-note OCR** (optional) | Read burned-in VFX notes (bottom-left), flag which shots are VFX, and reconcile across the 3 frames (start/mid/end) to spot note bleed or incomplete reads. Same install/skip behavior as Slate OCR. Verify crops with `probecrops` first. | `_<movie>_ocr_notes.csv` | EasyOCR |
 | **Boundary QC** (optional) | Use the slate oracle (frame-by-frame OCR) to find likely detector over-splits (same slate across a potential cut boundary) and missed cuts (slate changes mid-shot). Suggests splits/merges for review. | `qc_boundary_suggestions.csv` | EasyOCR + logic |
 | **QC** | Read the frames and thumbnails, flag shots that look suspicious: duration outliers (often a missed cut or an over-split), perceptual-hash jumps across start/mid/end (the shot spans a real cut), ultra-short shots. Writes `qc_flags.csv` for you to review. | `qc_flags.csv` | Pillow + numpy |
 | **Cut clips** | Extract each shot as a standalone MP4 (or other format). Useful for sending individual clips to a vendor or for pre-viz review. Hardware encoding (NVIDIA NVENC) is auto-detected and speeds up encoding. | `cuts/SHW_<tcid>.mp4` | ffmpeg |
 | **Contact sheet** | Assemble all thumbnails into one large grid (8K, 7680x4320). Letterbox-cropped (dark frames don't shrink the crop). Useful for a quick visual scan of the entire film. | `_<movie>_contact_sheet.jpg` | Pillow |
 | **Reference clips** | Burn official shot codes and timecode into each clip (ProRes 422 HQ format for archival quality). Concatenate them into a timeline MP4 so you can scrub through the entire film shot-by-shot with codes visible. | `refclips/SHW_<tcid>.mov` + `_timeline.mov` | ffmpeg + Pillow |
 | **Build sheet** | Write shots into your own Google breakdown sheet (or create a new one from a blank template). Resolves columns by header, so it survives operator reordering. Thumbnails are linked via `=IMAGE()` formulas, so they load lazily in the browser. Your own account signs in; the app never uses a shared bot. | Live Google Sheet | Sheets API |
+
+### Verify OCR crop boxes with `probecrops`
+
+The OCR stages read three pixel boxes from `config.json` (`ocr_crops.slate`, `.note`, `.showtc`), and they are show-specific: you must confirm they line up with your footage before you trust any OCR output. Instead of typing pixel coordinates blind and hoping, render them onto a real frame:
+
+```bash
+bs_env\Scripts\python bs_ocr.py probecrops --movie path\to\your_movie.mov --frame 1
+```
+
+(macOS/Linux: `bs_env/bin/python3 bs_ocr.py probecrops --movie path/to/your_movie.mov --frame 1`)
+
+This writes `_crop_check.jpg` next to your output, with the slate/note/show-TC boxes drawn on top of the actual frame. Open it and adjust `ocr_crops` in Settings until each box hugs its burn-in, then re-run `probecrops` to confirm.
 
 ### Important options
 
@@ -266,13 +281,21 @@ runs a whole film.
 
 ## Troubleshooting
 
+**Run the doctor.**
+- Before anything else, run:
+  ```bash
+  bs_env\Scripts\python bs_launcher.py doctor
+  ```
+  (macOS/Linux: `bs_env/bin/python3 bs_launcher.py doctor`). Or click **Run doctor** in Settings.
+- It prints a PASS/WARN/FAIL table covering: the Python interpreter and version, `bs_env` and its dependencies, the AI extras (torch/TransNetV2/EasyOCR), ffmpeg/ffprobe, `config.json`, and your Google credential file. Most of the issues below show up here first, with a specific reason instead of a downstream crash.
+
 **`install.bat` says Python was not found.**
 - On Windows, the `python` command is often a Microsoft Store stub, not a real interpreter: it looks fine on the command line but fails silently (or opens the Store) when a script runs it. `install.bat` checks for this and will tell you plainly if it finds the stub.
 - Fix: install Python 3.9+ from https://www.python.org/downloads/ (tick "Add python.exe to PATH"), then close the terminal, open a new one, and re-run `install.bat`.
 - If you want to keep the Store shortcut from intercepting `python`/`python3` in the future, you can turn it off in Settings -> Apps -> Advanced app settings -> App execution aliases.
 
 **`Breakdown Studio.bat` opens a console that flashes and closes.**
-- The launcher is finding the wrong Python interpreter. Check Settings, Worker Python: it should be a real `python.exe` from your `worker_env`, not the Windows Store stub.
+- The launcher is finding the wrong Python interpreter. Check Settings, Worker Python: it should be a real `python.exe` from your `bs_env` folder, not the Windows Store stub. Run doctor to confirm.
 - Run **`Breakdown Studio (debug).bat`** to see the actual error.
 
 **`Breakdown Studio.lnk` does nothing (on Dropbox-synced machines).**
@@ -284,8 +307,12 @@ runs a whole film.
 - Never delete a thumbnail because an API read reports it as `#REF`.
 - For very large cuts, use `--thumb-mode none` (or untick upload in Settings) to skip thumbnail upload entirely.
 
+**Detect (or an OCR stage) is skipped with a message instead of running.**
+- This is expected if you answered "n" to the AI-features question during install, or ticked Detect without a TransNetV2 Python set. The app auto-skips rather than failing, and the log line tells you why.
+- Fix: re-run `install.bat` / `install.sh` and answer "y" to the AI-features question, or set up the advanced separate env (see "Advanced: separate detection env" above) and point **TransNetV2 Python** at it in Settings.
+
 **`Build sheet` fails with a Google authentication error.**
-- Make sure you have **Google OAuth client secret JSON** set in Settings.
+- Make sure you have **Google OAuth client secret JSON** set in Settings. If you have not done the one-time Google Cloud Console setup yet, see `SETUP_GOOGLE.md`.
 - Click **Connect Google…** to sign in and grant consent. A token is cached so you won't sign in every time.
 - For headless / automated use, set the `BS_GOOGLE_SA` environment variable to a service-account JSON and share your sheets with that account's email.
 
@@ -319,10 +346,11 @@ See `CONTRIBUTING.md`.
 | `bs_ocr.py` | Slate OCR (top-left burn-in, shot identity), VFX-note OCR (bottom-left, is-vfx flag), show-TC read (for offset verification). Optional, requires EasyOCR (`pip install easyocr`). |
 | `bs_repair.py` | Boundary QC and shot-list editing: split-into-N, merge adjacent shots, rethumb individual shots, apply a ledger of corrections. Optional, input-driven. |
 | `bs_match.py` | 1:1 cross-cut shot matcher: assigns each new-cut shot to a master shot by exact code, slate + ordinal, visual similarity (CLIP), or marks as new/omit. Global uniqueness enforcement (no two shots claim one code). Optional, runs in-app or standalone. |
-| `transnet_detect.py` | TransNetV2 shot detection. Runs in its own torch environment. |
+| `transnet_detect.py` | TransNetV2 shot detection. Runs under whichever Python is set as TransNetV2 Python: `bs_env` by default (installed alongside the worker deps), or a separate `transnet_env` if you used the advanced GPU/CUDA install. |
 | `contact_sheet.py` | Assembles thumbnails into an 8K grid with auto-letterboxing. |
 | `bs_gsheets.py` | Google Sheets connection: OAuth login, template copy, sheet build, row matching. |
 | `make_blank_template.py` | Strips a master breakdown into a shareable template (structure, formatting, no shot/cost data). |
+| `bs_launcher.py` | Single entry point (source or packaged build): dispatches to the GUI or any CLI stage, plus the `doctor` health check (`bs_launcher.py doctor`). |
 | `tests/smoke_test.py`, `test_ocr.py`, `test_repair.py`, `test_match.py` | Unit tests: 232 total (16 + 90 + 72 + 54). Pure-logic and integration tests for frame math, timecode, CSV parsing, OCR grammar, boundary repair, and matching. |
 
 ## Files and folder structure
@@ -339,8 +367,10 @@ breakdown_studio/
   contact_sheet.py                 ← 8K contact sheet
   bs_gsheets.py                    ← Google Sheets connection
   make_blank_template.py           ← template creation
-  install.bat / install.sh         ← one-shot installers
-  config.json                      ← per-machine settings (git-ignored)
+  bs_launcher.py                   ← single entry point (GUI + CLI stages + doctor)
+  install.bat / install.sh         ← one-shot installers (create bs_env, write config.json)
+  install-transnet.bat/.sh         ← advanced: separate transnet_env (GPU/CUDA)
+  config.json                      ← per-machine settings (git-ignored, pre-filled by installer)
   config.example.json              ← template for config.json
   tests/
     smoke_test.py                  ← pure-logic tests (frame math, timecode, CSV parsing)
@@ -361,6 +391,8 @@ breakdown_studio/
       match-1to1-unique.md         ← example memory
       persist-decisions.md         ← example memory
   README.md                        ← this file
+  QUICKSTART.md                    ← 10-minute install-to-sheet walkthrough
+  SETUP_GOOGLE.md                  ← one-time Google OAuth setup
   UPGRADE_PLAN.md                  ← roadmap and technical notes
   CONTRIBUTING.md                  ← contribution guidelines
   DISTRIBUTION_CHECKLIST.md        ← pre-publish verification

@@ -25,15 +25,23 @@ CLI:
   python bs_ocr.py notes      --frames-dir X --scenes-csv Y [--config config.json]
   python bs_ocr.py tcoffset   --frames-dir X --scenes-csv Y [--config config.json]
   python bs_ocr.py boundaryqc --frames-dir X --scenes-csv Y [--config config.json] [--slate-csv slate_ocr.csv]
+  python bs_ocr.py probecrops --movie X --frame N [--out Y.jpg] [--config config.json]
 
-Each stage prints 'PROGRESS <stage> done/total' lines (matching bs_worker.py) and a final
-'DONE <stage>' line.
+Each of the first four stages prints 'PROGRESS <stage> done/total' lines (matching
+bs_worker.py) and a final 'DONE <stage>' line. probecrops is a one-shot visual check (see
+below) and prints the boxes it drew instead.
+
+probecrops verifies the configured OCR crop boxes BEFORE trusting a real OCR pass: it grabs
+one frame straight from the movie and draws the slate/note/showtc crop rectangles on top of
+it, so a producer can open the jpg and see at a glance whether the boxes actually hug the
+burn-ins (see UX_PLAN.md P6 -- this replaces blind pixel-typing).
 """
 import argparse
 import csv
 import json
 import os
 import re
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -939,6 +947,62 @@ def boundary_qc(frames_dir, shots, cfg, slate_csv=None,
 
 
 # =============================================================================================
+# probecrops: verify OCR crop boxes visually against a real frame, before trusting OCR output
+# (see UX_PLAN.md P6; module-level "Crop regions are ALWAYS config-driven" note above)
+# =============================================================================================
+
+def extract_frame(movie, frame_idx, out_path, fps=None):
+    """Grab one frame (0-based frame_idx) from `movie` via ffmpeg, using bs_worker's accurate
+    single-frame seek (W._seek_args) so the frame matches what the rest of the pipeline would
+    extract for that shot. Returns (ok, ffmpeg_completed_process)."""
+    movie = str(movie)
+    fps = fps or W.get_fps(movie)
+    pre, post = W._seek_args(frame_idx, None, fps)
+    r = subprocess.run([W.FFMPEG, "-y", "-hide_banner", "-loglevel", "error"]
+                       + pre + ["-i", movie] + post
+                       + ["-frames:v", "1", "-q:v", "2", str(out_path)],
+                       capture_output=True)
+    return r.returncode == 0, r
+
+
+# distinct, high-contrast colors per crop region so overlapping/adjacent boxes stay readable
+PROBE_COLORS = {
+    "slate": (255, 64, 64),    # red
+    "note": (64, 200, 255),    # cyan
+    "showtc": (255, 210, 40),  # yellow
+}
+
+
+def probe_crops(movie, frame_idx, out_path, cfg):
+    """Extract one frame from `movie` and draw the configured slate/note/showtc OCR crop boxes
+    on top of it, each labelled with its region name at the box's top-left corner, so a
+    producer can eyeball whether the crops actually hug the burn-ins before trusting a real
+    OCR pass. Writes `out_path` (a jpg) and returns [(name, (x0, y0, x1, y1)), ...] drawn, in
+    the same (slate, note, showtc) order every time.
+    """
+    from PIL import Image, ImageDraw
+    movie = Path(movie)
+    out_path = Path(out_path)
+    fps = get_fps(cfg)
+    ok, r = extract_frame(movie, frame_idx, out_path, fps=fps)
+    if not ok:
+        raise SystemExit(f"ERROR: could not extract frame {frame_idx} from {movie}: "
+                         f"{W._tail(r.stderr)}")
+
+    im = Image.open(out_path).convert("RGB")
+    draw = ImageDraw.Draw(im)
+    boxes = []
+    for name in ("slate", "note", "showtc"):
+        box = get_crop(cfg, name)
+        color = PROBE_COLORS.get(name, (0, 255, 0))
+        draw.rectangle(box, outline=color, width=3)
+        draw.text((box[0] + 4, box[1] + 4), name, fill=color)
+        boxes.append((name, box))
+    im.save(out_path, quality=92)
+    return boxes
+
+
+# =============================================================================================
 # CLI
 # =============================================================================================
 
@@ -954,14 +1018,23 @@ def _load_shots(scenes_csv, fps, prefix):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("stage", choices=["slate", "notes", "tcoffset", "boundaryqc"])
-    ap.add_argument("--frames-dir", required=True, help="directory containing <prefix>_<tcid>-{start,mid,end}.jpg")
-    ap.add_argument("--scenes-csv", required=True, help="PySceneDetect/TransNetV2-format Scenes.csv")
+    ap.add_argument("stage", choices=["slate", "notes", "tcoffset", "boundaryqc", "probecrops"])
+    ap.add_argument("--frames-dir", default=None,
+                    help="[slate/notes/tcoffset/boundaryqc] directory containing "
+                         "<prefix>_<tcid>-{start,mid,end}.jpg")
+    ap.add_argument("--scenes-csv", default=None,
+                    help="[slate/notes/tcoffset/boundaryqc] PySceneDetect/TransNetV2-format Scenes.csv")
     ap.add_argument("--config", default="", help="path to config.json (ocr_crops, prefix, fps, ...)")
     ap.add_argument("--prefix", default=None, help="override cfg/BS_PREFIX shot-code prefix")
     ap.add_argument("--fps", type=float, default=None, help="override cfg fps (default 24.0)")
     ap.add_argument("--slate-csv", default=None, help="[boundaryqc] reuse an existing slate_ocr.csv instead of re-OCRing")
     ap.add_argument("--limit", type=int, default=None, help="only process the first N shots (debugging)")
+    ap.add_argument("--movie", default=None, help="[probecrops] path to the reference movie")
+    ap.add_argument("--frame", type=int, default=None,
+                    help="[probecrops] 0-based frame index to extract and check")
+    ap.add_argument("--out", default=None,
+                    help="[probecrops] output jpg path (default: _<movie-stem>_crop_check.jpg "
+                         "beside the movie)")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -969,6 +1042,22 @@ def main():
         cfg["prefix"] = args.prefix
     if args.fps:
         cfg["fps"] = args.fps
+
+    if args.stage == "probecrops":
+        if not args.movie or args.frame is None:
+            ap.error("probecrops requires --movie and --frame")
+        movie = Path(args.movie)
+        out_path = Path(args.out) if args.out else movie.parent / f"_{movie.stem}_crop_check.jpg"
+        print(f"=== bs_ocr probecrops | movie={movie} frame={args.frame} ===", flush=True)
+        boxes = probe_crops(movie, args.frame, out_path, cfg)
+        print(f"LOG [probecrops] wrote {out_path}", flush=True)
+        for name, box in boxes:
+            print(f"  {name}: {box}", flush=True)
+        print("DONE probecrops", flush=True)
+        return
+
+    if not args.frames_dir or not args.scenes_csv:
+        ap.error(f"{args.stage} requires --frames-dir and --scenes-csv")
 
     fps = get_fps(cfg)
     prefix = get_prefix(cfg)

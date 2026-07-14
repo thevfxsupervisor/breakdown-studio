@@ -1,6 +1,6 @@
 {
-  "transnet_python": "/path/to/transnet_env/Scripts/python.exe",
-  "worker_python": "/path/to/worker_env/Scripts/python.exe",
+  "transnet_python": "",
+  "worker_python": "",
   "ffmpeg": "/path/to/ffmpeg.exe",
   "ffprobe": "/path/to/ffprobe.exe",
   "scripts_dir": ".",

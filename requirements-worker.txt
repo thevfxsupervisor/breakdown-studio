@@ -1,9 +1,0 @@
-# Worker environment: frames / thumbnails / cut clips / contact sheet / reference clips,
-# plus the Google Sheets/Drive integration (bs_gsheets.py).
-# Install into the Python you point Settings -> "Worker Python" at.
-Pillow>=10
-numpy>=1.24
-google-api-python-client>=2.100
-google-auth>=2.23
-google-auth-oauthlib>=1.1
-# The GUI itself (breakdown_studio.py) needs only the Python standard library (tkinter).
