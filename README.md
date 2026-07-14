@@ -1,6 +1,6 @@
 # Breakdown Studio
 
-A portable, open-source GUI for building a VFX shot breakdown from a locked film cut. It automates the mechanical work (detect shots, extract frames and thumbnails, OCR burned-in slate and VFX notes, assemble reference clips, build a live Google breakdown sheet) so you can focus on the judgment work that actually requires expertise: matching cuts, QCing boundaries, reconciling notes, and gating master updates.
+A portable, open-source GUI for building a VFX shot breakdown from an evolving film cut. It automates the mechanical work (detect shots, extract frames and thumbnails, OCR burned-in slate and VFX notes, assemble reference clips, build a live Google breakdown sheet) so you can focus on the judgment work that actually requires expertise: matching cuts, QCing boundaries, reconciling notes, and gating master updates.
 
 Built and battle-tested on a real feature-film production. MIT licensed.
 
