@@ -65,6 +65,16 @@ If you work with an AI assistant, the `ai_kit/` folder includes a brief, skills,
 
 ## Install
 
+### Fastest path: the packaged Windows build (no Python needed)
+
+If you are on Windows and just want to run the app, skip everything below: download
+`BreakdownStudio-<version>-windows-x64.zip` from the
+[Releases page](https://github.com/thevfxsupervisor/breakdown-studio/releases), unzip it
+anywhere, and double-click `BreakdownStudio.exe`. Point Settings at your ffmpeg/ffprobe
+binaries and you are working. The packaged build ships without the AI features (shot
+detection and OCR need a multi-GB torch install that does not belong in a zip); everything
+else works, and the from-source install below adds the AI features when you want them.
+
 ### Before you install (prerequisites)
 
 Check these before running the installer. The installer validates most of this for you and will tell you if something is missing, but it is faster to have them ready first.
