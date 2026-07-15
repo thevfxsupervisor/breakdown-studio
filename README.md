@@ -49,7 +49,7 @@ Each shot is keyed by its timecode ID (`tcid`: `HHMMSSFF` of the start) so all a
 
 ## Validated on a real production
 
-Breakdown Studio has been tested against a real feature-film production: 9,188 operator-verified slate reads achieved 98.0% agreement with OCR; the 1:1 matching algorithm reproduces the operator-approved outcome at approximately 95% accuracy on the achievable subset, with zero uniqueness collisions (residual variation being operator picture-judgment, by design). 232 unit tests pass across 4 test suites. The tool ships battle-tested.
+Breakdown Studio has been tested against a real feature-film production: 9,188 operator-verified slate reads achieved 98.0% agreement with OCR; the 1:1 matching algorithm reproduces the operator-approved outcome at approximately 95% accuracy on the achievable subset, with zero uniqueness collisions (residual variation being operator picture-judgment, by design). 498 unit tests pass across 9 test suites. The tool ships battle-tested.
 
 ## What you do (judgment work)
 
@@ -361,7 +361,7 @@ See `CONTRIBUTING.md`.
 | `bs_gsheets.py` | Google Sheets connection: OAuth login, template copy, sheet build, row matching. |
 | `make_blank_template.py` | Strips a master breakdown into a shareable template (structure, formatting, no shot/cost data). |
 | `bs_launcher.py` | Single entry point (source or packaged build): dispatches to the GUI or any CLI stage, plus the `doctor` health check (`bs_launcher.py doctor`). |
-| `tests/smoke_test.py`, `test_ocr.py`, `test_repair.py`, `test_match.py` | Unit tests: 232 total (16 + 90 + 72 + 54). Pure-logic and integration tests for frame math, timecode, CSV parsing, OCR grammar, boundary repair, and matching. |
+| `tests/smoke_test.py`, `test_ocr.py`, `test_repair.py`, `test_match.py` | Unit tests: 498 total across 9 suites. Pure-logic and integration tests for frame math, timecode, CSV parsing, OCR grammar, boundary repair, and matching. |
 
 ## Files and folder structure
 
