@@ -413,6 +413,13 @@ breakdown_studio/
 
 MIT. See `LICENSE` for terms.
 
-## Credits
+## Built by
 
-Built on production experience. If you use this tool or contribute improvements, we'd love to hear about it.
+Breakdown Studio was built by Geoffrey Hancock, a VFX supervisor and producer who builds production
+tooling and orchestrates AI on real film productions, and shipped it from a live feature.
+
+- The story behind it: [case study](https://thevfxsupervisor.github.io/projects/breakdown-studio/)
+- The method, as a course: [join the waitlist](https://thevfxsupervisor.github.io/course/)
+- More: [thevfxsupervisor.github.io](https://thevfxsupervisor.github.io/)
+
+If you use this tool or contribute improvements, we'd love to hear about it.
