@@ -451,15 +451,15 @@
         <div class="ladder" style="position:relative">
           <div class="col2">
             <div><h4>New cut</h4>
-              <div class="rowline m"><b>SHW_0884_02_020</b><span class="tag">exact</span></div>
-              <div class="rowline m"><b>SHW_0519_03_040</b><span class="tag">ordinal</span></div>
-              <div class="rowline m"><b>SHW_0519_03_050</b><span class="tag">ordinal</span></div>
-              <div class="rowline"><b>SHW_0932_01_010</b><span class="tag new">new?</span></div>
+              <div class="rowline m"><b>SHW_9010_02_020</b><span class="tag">exact</span></div>
+              <div class="rowline m"><b>SHW_9030_03_040</b><span class="tag">ordinal</span></div>
+              <div class="rowline m"><b>SHW_9030_03_050</b><span class="tag">ordinal</span></div>
+              <div class="rowline"><b>SHW_9040_01_010</b><span class="tag new">new?</span></div>
             </div>
             <div><h4>Master</h4>
-              <div class="rowline"><b>SHW_0884_02_020</b></div>
-              <div class="rowline"><b>SHW_0519_03_030</b></div>
-              <div class="rowline"><b>SHW_0519_03_040</b></div>
+              <div class="rowline"><b>SHW_9010_02_020</b></div>
+              <div class="rowline"><b>SHW_9030_03_030</b></div>
+              <div class="rowline"><b>SHW_9030_03_040</b></div>
               <div class="rowline" style="opacity:.5"><b>· dropped ·</b></div>
             </div>
           </div>
@@ -565,15 +565,18 @@
     'linear-gradient(160deg,#243a34,#0d1a15 70%)','linear-gradient(160deg,#2e2430,#140d15 70%)',
     'linear-gradient(160deg,#1f2c3a,#0c1119 70%)','linear-gradient(160deg,#3a271f,#160b07 70%)',
     'linear-gradient(160deg,#26343a,#0d1518 70%)','linear-gradient(160deg,#2b3324,#10140a 70%)'];
+  // Illustrative sample data only. Deliberately synthetic: sequential slate numbers that do not
+  // correspond to any real production. Never paste real slates, takes, timecodes or VFX notes here,
+  // this page is public and the combination is client-confidential.
   var shots=[
-    {sc:'12/0884/II',tc:'01:14:22:04',note:'SET EXTENSION',code:'0884_02_020'},
-    {sc:'12/0885/I', tc:'01:14:29:11',note:'',code:'0885_01_010'},
-    {sc:'13/0519/III',tc:'01:15:02:18',note:'REMOVE WIRES',code:'0519_03_040'},
-    {sc:'13/0519/III',tc:'01:15:08:02',note:'BLUE SCREEN',code:'0519_03_050'},
-    {sc:'14/0932/I', tc:'01:15:20:15',note:'CLEAN UP',code:'0932_01_010'},
-    {sc:'14/0940/I', tc:'01:15:27:22',note:'',code:'0940_01_010'},
-    {sc:'15/0053/-', tc:'01:15:41:07',note:'DMP BACKGROUND',code:'0053_00_120'},
-    {sc:'15/0958/II',tc:'01:15:52:19',note:'MUZZLE FLASH',code:'0958_02_030'}];
+    {sc:'01/9010/II',tc:'01:00:12:04',note:'SET EXTENSION',code:'9010_02_020'},
+    {sc:'01/9020/I', tc:'01:00:19:11',note:'',code:'9020_01_010'},
+    {sc:'02/9030/III',tc:'01:00:32:18',note:'REMOVE WIRES',code:'9030_03_040'},
+    {sc:'02/9030/III',tc:'01:00:38:02',note:'BLUE SCREEN',code:'9030_03_050'},
+    {sc:'03/9040/I', tc:'01:00:50:15',note:'CLEAN UP',code:'9040_01_010'},
+    {sc:'03/9050/I', tc:'01:00:57:22',note:'',code:'9050_01_010'},
+    {sc:'04/9060/-', tc:'01:01:11:07',note:'DMP BACKGROUND',code:'9060_00_120'},
+    {sc:'04/9070/II',tc:'01:01:22:19',note:'MUZZLE FLASH',code:'9070_02_030'}];
   var strip=document.getElementById('strip'),codesEl=document.getElementById('codes');
   var cuts=[1,2,4,6,7];
   shots.forEach(function(s,i){
