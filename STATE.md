@@ -5,7 +5,7 @@
 ## Status: SHIPPED and public
 
 Repo public, v1.0.0 Windows release published, landing page live at
-https://thevfxsupervisor.github.io/breakdown-studio/ (verified 200 including both logo assets).
+https://thevfxsupervisor.com/breakdown-studio/ (verified 200 including both logo assets).
 Engineering is complete; the remaining work is launch and distribution, most of it Geoff-gated.
 
 ## Landed 2026-08-05

@@ -12,7 +12,7 @@ Sheet, and re-matches each new cut back to a master 1:1. Ships as a Tkinter and 
 packaged Windows build. It grew out of a real production pipeline and was genericised for release.
 
 - Repo: https://github.com/thevfxsupervisor/breakdown-studio (**PUBLIC**)
-- Landing page: https://thevfxsupervisor.github.io/breakdown-studio/
+- Landing page: https://thevfxsupervisor.com/breakdown-studio/
 - v1.0.0 Windows release is published.
 
 ## PUBLIC repo: the leak-gate is the first rule
